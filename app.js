@@ -1,7 +1,11 @@
 (() => {
   "use strict";
-  const PORTAL_VERSION = "v1.0.0-r2026-06-04";
+  const PORTAL_VERSION = "v1.0.1-r2026-06-04";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
+  const NEW_TAB_ATTRS = {
+    target: "_blank",
+    rel: "noopener noreferrer"
+  };
   const apps = [
     {
       title: "Programming Library",
@@ -42,6 +46,12 @@
     }
   ];
 
+  function applyNewTabAttributes(link) {
+    link.target = NEW_TAB_ATTRS.target;
+    link.rel = NEW_TAB_ATTRS.rel;
+    return link;
+  }
+
   function renderAppCard(app) {
     const card = document.createElement("article");
     card.className = "app-card";
@@ -71,7 +81,8 @@
     open.className = "button";
     open.href = app.url;
     open.textContent = "Open";
-    open.setAttribute("aria-label", `Open ${app.title}`);
+    open.setAttribute("aria-label", `Open ${app.title} in a new tab`);
+    applyNewTabAttributes(open);
     actions.appendChild(open);
 
     if (app.fallbackUrl) {
@@ -79,9 +90,15 @@
       fallback.className = "button secondary";
       fallback.href = app.fallbackUrl;
       fallback.textContent = "Open app home";
-      fallback.setAttribute("aria-label", `Open ${app.title} home page`);
+      fallback.setAttribute("aria-label", `Open ${app.title} home page in a new tab`);
+      applyNewTabAttributes(fallback);
       actions.appendChild(fallback);
     }
+
+    const note = document.createElement("small");
+    note.className = "opens-note";
+    note.textContent = "Opens in a new tab";
+    actions.appendChild(note);
 
     card.append(heading, description, meta, actions);
     return card;
