@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WNMU Home</title>
+  <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
+  <link rel="stylesheet" href="styles.css?v=v1.0.0-r2026-06-04">
+</head>
+<body>
+  <main class="portal-shell">
+    <header class="hero">
+      <div>
+        <p class="kicker">WNMU tools portal</p>
+        <h1>WNMU Home</h1>
+        <p class="hero-summary">One clean front door for the Programming Library, Pledge Library/Scheduler, Monthly Schedules, and Sales View.</p>
+      </div>
+      <div class="version-pill" aria-label="Portal version">
+        <span>Portal</span>
+        <strong>v1.0.0-r2026-06-04</strong>
+      </div>
+    </header>
+
+    <section class="app-grid" data-app-grid aria-label="WNMU apps">
+      <noscript><p class="noscript-warning">JavaScript is needed to build the app launcher buttons.</p></noscript>
+    </section>
+
+    <section class="workflow-panel" aria-label="Portal notes">
+      <h2>Current approach</h2>
+      <p>This is a launcher only. It does not merge data, rewrite app logic, or change the existing WNMU tools.</p>
+      <div class="note-grid">
+        <article><h3>Now</h3><p>Use this as a stable doorway into the three existing apps.</p></article>
+        <article><h3>Next</h3><p>Add shared login only after the links and page behavior are confirmed.</p></article>
+        <article><h3>Later</h3><p>Share selected data services where it actually helps, without turning the whole thing into spaghetti.</p></article>
+      </div>
+    </section>
+  </main>
+  <script src="app.js?v=v1.0.0-r2026-06-04"></script>
+</body>
+</html>
