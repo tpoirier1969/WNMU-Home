@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.6-r2026-06-10";
+  const PORTAL_VERSION = "v1.0.7-r2026-06-10";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
