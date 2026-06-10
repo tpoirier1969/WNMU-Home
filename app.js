@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.4-r2026-06-10";
+  const PORTAL_VERSION = "v1.0.6-r2026-06-10";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
@@ -283,36 +283,48 @@
 
     const windowInfo = scheduleDriveSummaryWindow(schedule);
     const driveTitle = [windowInfo.mode, schedule.title || "Loaded fundraiser"].filter(Boolean).join(" — ");
-    const goalDifference = scheduleGrandTotal(schedule) - (Number(schedule.goalDollars || 0) || 0);
-    const values = [
-      { label: "Broadcast $", value: formatMoney(scheduleBroadcastTotal(schedule)) },
+    const goal = Number(schedule.goalDollars || 0) || 0;
+    const totalRaised = scheduleGrandTotal(schedule);
+    const goalDifference = totalRaised - goal;
+    const priorityValues = [
+      { label: "Goal", value: formatMoney(goal) },
+      { label: "Total Raised", value: formatMoney(totalRaised), important: true },
+      { label: "Difference", value: formatMoney(goalDifference), tone: goalDifferenceTone(goalDifference), important: true }
+    ];
+    const secondaryValues = [
       { label: "Pledges", value: formatCount(scheduleImportedPledgesTotal(schedule)) },
-      { label: "Online $", value: formatMoney(Number(schedule.onlineDollars || 0) || 0) },
-      { label: "Mail $", value: formatMoney(Number(schedule.mailDollars || 0) || 0) },
-      { label: "Non-Specific $", value: formatMoney(scheduleImportedNonSpecificTotal(schedule)) },
-      { label: "Total Raised $", value: formatMoney(scheduleGrandTotal(schedule)) },
-      { label: "Goal", value: formatMoney(Number(schedule.goalDollars || 0) || 0) },
-      { label: "Difference", value: formatMoney(goalDifference), tone: goalDifferenceTone(goalDifference) }
+      { label: "Broadcast", value: formatMoney(scheduleBroadcastTotal(schedule)) },
+      { label: "Non-Specific", value: formatMoney(scheduleImportedNonSpecificTotal(schedule)) },
+      { label: "Online", value: formatMoney(Number(schedule.onlineDollars || 0) || 0) },
+      { label: "Mail", value: formatMoney(Number(schedule.mailDollars || 0) || 0) }
     ];
 
+    const priorityHtml = priorityValues.map((item) => `
+      <div class="drive-summary-priority-card ${item.important ? "important" : ""} ${item.tone ? `goal-difference-card goal-difference-${item.tone}` : ""}">
+        <div class="drive-summary-label">${escapeHtml(item.label)}</div>
+        <div class="drive-summary-value ${item.tone ? `goal-difference-value goal-difference-${item.tone}` : ""}">${escapeHtml(item.value)}</div>
+      </div>
+    `).join("");
+
+    const secondaryHtml = secondaryValues.map((item) => `
+      <div class="drive-summary-secondary-card">
+        <div class="drive-summary-label">${escapeHtml(item.label)}</div>
+        <div class="drive-summary-value">${escapeHtml(item.value)}</div>
+      </div>
+    `).join("");
+
     box.innerHTML = `
-      <div class="drive-summary-head">
+      <div class="drive-summary-head drive-summary-head-priority">
         <div class="drive-summary-title-wrap">
           <div class="drive-summary-kicker">Pledge drive snapshot</div>
-          <div class="drive-summary-title-line">
+          <div class="drive-summary-title-line drive-summary-title-line-priority">
             <span class="drive-summary-title">${escapeHtml(driveTitle)}</span>
+            <div class="drive-summary-priority-row">${priorityHtml}</div>
           </div>
         </div>
         <div class="drive-summary-date">${escapeHtml(formatDate(schedule.startDate))} – ${escapeHtml(formatDate(schedule.endDate))}</div>
       </div>
-      <div class="drive-summary-grid">
-        ${values.map((item) => `
-          <div class="drive-summary-card ${item.tone ? `goal-difference-card goal-difference-${item.tone}` : ""}">
-            <div class="drive-summary-label">${escapeHtml(item.label)}</div>
-            <div class="drive-summary-value ${item.tone ? `goal-difference-value goal-difference-${item.tone}` : ""}">${escapeHtml(item.value)}</div>
-          </div>
-        `).join("")}
-      </div>
+      <div class="drive-summary-secondary-grid">${secondaryHtml}</div>
     `;
     box.classList.remove("hidden");
   }
