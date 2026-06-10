@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.2-r2026-06-10";
+  const PORTAL_VERSION = "v1.0.3-r2026-06-10";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
@@ -9,40 +9,39 @@
   const apps = [
     {
       title: "Programming Library",
-      description: "The main program/title library: rights, NOLA codes, topics, lengths, availability, and title reference work.",
+      description: "Program titles, rights, topics, and reference data.",
       url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`,
       accent: "#315f8c",
       tagBg: "#e4eef8",
       tagText: "#315f8c",
-      tags: ["Programs", "Rights", "Topics"]
+      tags: []
     },
     {
       title: "Pledge Library / Scheduler",
-      description: "Fundraiser planning, pledge program scheduling, exact fundraiser placements, and pledge-drive work.",
+      description: "Pledge program library, scheduler, and drive tools.",
       url: `${PLEDGE_APP_ROOT}/`,
       accent: "#376d5c",
       tagBg: "#e4f1ed",
       tagText: "#376d5c",
-      tags: ["Pledge", "Scheduler", "Fundraising"]
+      tags: []
     },
     {
       title: "Monthly Schedules",
-      description: "Monthly schedule imports, channel schedule views, title cleanup, and schedule review.",
+      description: "Monthly imports, channel grids, and schedule review.",
       url: `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules/`,
       accent: "#62517e",
       tagBg: "#ece7f4",
       tagText: "#62517e",
-      tags: ["Monthly", "Channels", "Cleanup"]
+      tags: []
     },
     {
       title: "Monthly Sales View",
-      description: "Sales-category view built from the monthly schedule, with fundraiser slots pulled from exact pledge schedule placements.",
+      description: "Monthly schedule grouped for sales categories.",
       url: `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules/sales-export.v1.5.72.html`,
-      fallbackUrl: `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules/`,
       accent: "#7a612a",
       tagBg: "#f5ecd4",
       tagText: "#7a612a",
-      tags: ["Sales", "Categories", "Export"]
+      tags: []
     }
   ];
 
@@ -93,14 +92,15 @@
 
     const meta = document.createElement("div");
     meta.className = "app-card__meta";
-    app.tags.forEach((label) => {
+    (app.tags || []).forEach((label) => {
       const tag = document.createElement("span");
       tag.className = "tag";
       tag.textContent = label;
       meta.appendChild(tag);
     });
 
-    card.append(heading, bodyRow, meta);
+    card.append(heading, bodyRow);
+    if (meta.children.length) card.appendChild(meta);
     return card;
   }
 
@@ -272,20 +272,6 @@
     return "neutral";
   }
 
-  function scheduleBroadcastUpdateStats(schedule = {}) {
-    const counted = (Array.isArray(schedule?.placements) ? schedule.placements : []).filter((placement) => {
-      if (!placement || placement.isNonPledge) return false;
-      return Boolean(normalizeText(placement.programTitle || "") || placement.programId);
-    });
-    const total = counted.length;
-    if (!total) return { total: 0, updated: 0, loading: false, label: "0 of 0 broadcasts updated" };
-    const updated = counted.reduce((sum, placement) => {
-      const hasImported = Boolean(placement.importedFromReport || placement.sourceAiringHash || Number(placement.importedBroadcastDollars || 0) > 0);
-      return sum + (hasImported ? 1 : 0);
-    }, 0);
-    return { total, updated, loading: false, label: `${formatCount(updated)} of ${formatCount(total)} broadcasts updated` };
-  }
-
   function renderDriveSummary(schedule) {
     const box = document.getElementById("pledgeDriveSummary");
     if (!box) return;
@@ -297,7 +283,6 @@
 
     const windowInfo = scheduleDriveSummaryWindow(schedule);
     const driveTitle = [windowInfo.mode, schedule.title || "Loaded fundraiser"].filter(Boolean).join(" — ");
-    const updateStats = scheduleBroadcastUpdateStats(schedule);
     const goalDifference = scheduleGrandTotal(schedule) - (Number(schedule.goalDollars || 0) || 0);
     const values = [
       { label: "Broadcast $", value: formatMoney(scheduleBroadcastTotal(schedule)) },
@@ -316,7 +301,6 @@
           <div class="drive-summary-kicker">Pledge drive snapshot</div>
           <div class="drive-summary-title-line">
             <span class="drive-summary-title">${escapeHtml(driveTitle)}</span>
-            <span class="drive-summary-coverage ${updateStats.loading ? "loading" : ""}">${escapeHtml(updateStats.label)}</span>
           </div>
         </div>
         <div class="drive-summary-date">${escapeHtml(formatDate(schedule.startDate))} – ${escapeHtml(formatDate(schedule.endDate))}</div>
