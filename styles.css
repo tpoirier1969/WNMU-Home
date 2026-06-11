@@ -27,3 +27,18 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 @media(max-width:520px){.schedule-panel{border-radius:18px;padding:14px}.schedule-list-item,.highlights-list .schedule-list-item{grid-template-columns:1fr;gap:4px}.schedule-time{white-space:normal}.schedule-open-link{width:100%}}
 /* v1.0.9 Home schedule summary cleanup */
 .schedule-content-grid{align-items:start}.schedule-block{align-self:start}.schedule-list-item>div:last-child{min-width:0}.schedule-program-title{overflow-wrap:break-word}.highlights-list .schedule-list-item{grid-template-columns:1fr;gap:4px;padding:10px 12px}.highlights-list .schedule-time{white-space:normal;font-size:.82rem;line-height:1.2}.highlights-list .schedule-program-meta{margin-top:1px}
+
+/* v1.0.10 Home schedule columns and compact listings */
+.schedule-content-grid-three{grid-template-columns:minmax(0,.78fr) minmax(0,.78fr) minmax(0,1.44fr)}
+.schedule-block h3{font-size:.9rem;margin-bottom:7px}
+.schedule-list{gap:6px}
+.schedule-list-item{grid-template-columns:58px minmax(0,1fr);gap:7px;padding:7px 8px;border-radius:11px}
+.schedule-time{font-size:.76rem;line-height:1.18}
+.schedule-program-title{font-size:.84rem;line-height:1.14;letter-spacing:-.018em}
+.schedule-program-meta{font-size:.74rem;line-height:1.18;margin-top:1px}
+.schedule-empty,.schedule-loading{font-size:.84rem;line-height:1.28;padding:8px 0}
+.highlights-list .schedule-list-item{grid-template-columns:1fr;gap:3px;padding:7px 9px}
+.highlights-list .schedule-time{font-size:.74rem;line-height:1.15}
+@media(max-width:1080px){.schedule-content-grid-three{grid-template-columns:1fr 1fr}.schedule-block-highlights{grid-column:1/-1}}
+@media(max-width:760px){.schedule-content-grid-three{grid-template-columns:1fr}.schedule-block-highlights{grid-column:auto}}
+@media(max-width:520px){.schedule-list-item{grid-template-columns:1fr;gap:3px}.schedule-time{white-space:normal}}

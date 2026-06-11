@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.9-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.10-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
@@ -9,7 +9,7 @@
   const MONTHLY_PAGE = "index131.v1.4.1.html";
   const PRIME_START = "19:00";
   const PRIME_END = "23:00";
-  const MAX_HIGHLIGHTS = 10;
+  const MAX_HIGHLIGHTS = 999;
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
 
   const apps = [
@@ -55,6 +55,12 @@
   }
   function localTodayKey() { return dateKeyFromDate(new Date()); }
   function monthKeyFromDateKey(dateKey) { return String(dateKey || "").slice(0, 7); }
+  function nextMonthKey(monthKey) {
+    const [year, month] = String(monthKey || "").split("-").map(Number);
+    if (!year || !month) return "";
+    const next = new Date(year, month, 1);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+  }
   function plusDays(dateKey, days) {
     const date = toLocalDate(dateKey);
     if (Number.isNaN(date.getTime())) return dateKey || "";
@@ -412,33 +418,37 @@
     if (!box) return;
     if (!payload) { box.classList.add("hidden"); box.innerHTML = ""; return; }
 
-    const highlightLabel = payload.highlightRow?.label || formatMonthLabel(payload.highlightMonthKey);
-    const sameMonth = payload.todayMonthKey === payload.highlightMonthKey;
-    const subline = sameMonth
-      ? `${formatDateLong(payload.todayKey)} • ${highlightLabel}`
-      : `Today: ${formatDateLong(payload.todayKey)} • Highlights: ${highlightLabel}`;
-    const primeEmpty = payload.todayRow
+    const highlightLabel = `${formatMonthLabel(payload.todayMonthKey)} and ${formatMonthLabel(payload.nextMonthKey)}`;
+    const subline = `${formatDateLong(payload.todayKey)} • Highlights: ${highlightLabel}`;
+    const todayEmpty = payload.todayRow
       ? "No prime time listings are scheduled today."
       : "No 13.1 listings are available for today.";
-    const primeHtml = payload.primeTime.length ? renderScheduleList(payload.primeTime) : `<div class="schedule-empty">${escapeHtml(primeEmpty)}</div>`;
-    const highlightsHtml = payload.highlights.length ? renderScheduleList(payload.highlights, "schedule-list highlights-list") : `<div class="schedule-empty">Monthly highlights are being selected.</div>`;
-    const openMonth = payload.highlightMonthKey || payload.todayMonthKey || "";
+    const tomorrowEmpty = payload.tomorrowRow
+      ? "No prime time listings are scheduled tomorrow."
+      : "No 13.1 listings are available for tomorrow.";
+    const todayPrimeHtml = payload.todayPrimeTime.length ? renderScheduleList(payload.todayPrimeTime) : `<div class="schedule-empty">${escapeHtml(todayEmpty)}</div>`;
+    const tomorrowPrimeHtml = payload.tomorrowPrimeTime.length ? renderScheduleList(payload.tomorrowPrimeTime) : `<div class="schedule-empty">${escapeHtml(tomorrowEmpty)}</div>`;
+    const highlightsHtml = payload.highlights.length ? renderScheduleList(payload.highlights, "schedule-list highlights-list") : `<div class="schedule-empty">No monthly highlights are selected for this month or next month.</div>`;
 
     box.innerHTML = `
       <div class="schedule-panel-head">
         <div>
           <div class="schedule-kicker">WNMU 13.1 schedule</div>
-          <h2 class="schedule-title">Today’s prime time and monthly highlights</h2>
+          <h2 class="schedule-title">Prime time and monthly highlights</h2>
           <p class="schedule-subline">${escapeHtml(subline)}</p>
         </div>
-        <a class="schedule-open-link" href="${escapeHtml(schedulePageUrl(openMonth))}" target="_blank" rel="noopener noreferrer">Open full schedule</a>
+        <a class="schedule-open-link" href="${escapeHtml(schedulePageUrl(payload.todayMonthKey))}" target="_blank" rel="noopener noreferrer">Open full schedule</a>
       </div>
-      <div class="schedule-content-grid">
-        <section class="schedule-block">
+      <div class="schedule-content-grid schedule-content-grid-three">
+        <section class="schedule-block schedule-block-prime">
           <h3>Prime time today</h3>
-          ${primeHtml}
+          ${todayPrimeHtml}
         </section>
-        <section class="schedule-block">
+        <section class="schedule-block schedule-block-prime">
+          <h3>Prime time tomorrow</h3>
+          ${tomorrowPrimeHtml}
+        </section>
+        <section class="schedule-block schedule-block-highlights">
           <h3>Monthly highlights</h3>
           ${highlightsHtml}
         </section>
@@ -452,28 +462,52 @@
     try {
       const cfg = await loadMonthlyConfig();
       const todayKey = localTodayKey();
+      const tomorrowKey = plusDays(todayKey, 1);
       const todayMonthKey = monthKeyFromDateKey(todayKey);
-      const currentMonthKey = await getMonthlyCurrentMonth(cfg);
-      const todayRow = await getMonthlyScheduleRowOrNull(cfg, todayMonthKey);
-      const highlightMonthKey = currentMonthKey || todayMonthKey;
-      const highlightRow = highlightMonthKey === todayMonthKey
-        ? (todayRow || await getMonthlyScheduleRowOrNull(cfg, highlightMonthKey))
-        : await getMonthlyScheduleRowOrNull(cfg, highlightMonthKey);
-      if (!todayRow && !highlightRow) throw new Error("No imported monthly schedule is available.");
+      const tomorrowMonthKey = monthKeyFromDateKey(tomorrowKey);
+      const nextHighlightMonthKey = nextMonthKey(todayMonthKey);
 
-      const todayEntries = todayRow ? entriesFromSchedule(normalizeMonthlySchedule(todayRow.schedule_json || {})) : [];
-      const highlightEntries = highlightRow === todayRow
-        ? todayEntries
-        : (highlightRow ? entriesFromSchedule(normalizeMonthlySchedule(highlightRow.schedule_json || {})) : []);
-      const highlightKeys = highlightRow ? await getMonthlyHighlightMarks(cfg, highlightMonthKey) : new Set();
-      const primeTime = todayEntries
+      const monthRows = new Map();
+      for (const monthKey of [todayMonthKey, tomorrowMonthKey, nextHighlightMonthKey].filter(Boolean)) {
+        if (!monthRows.has(monthKey)) monthRows.set(monthKey, await getMonthlyScheduleRowOrNull(cfg, monthKey));
+      }
+
+      const todayRow = monthRows.get(todayMonthKey) || null;
+      const tomorrowRow = monthRows.get(tomorrowMonthKey) || null;
+      const nextHighlightRow = monthRows.get(nextHighlightMonthKey) || null;
+      if (!todayRow && !tomorrowRow && !nextHighlightRow) throw new Error("No imported monthly schedule is available.");
+
+      const entriesByMonth = new Map();
+      for (const [monthKey, row] of monthRows.entries()) {
+        entriesByMonth.set(monthKey, row ? entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {})) : []);
+      }
+
+      const todayEntries = entriesByMonth.get(todayMonthKey) || [];
+      const tomorrowEntries = entriesByMonth.get(tomorrowMonthKey) || [];
+      const todayPrimeTime = todayEntries
         .filter((entry) => entry.date === todayKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
         .map((entry) => ({ ...entry, _timeLabel: formatTime(entry.time), _meta: entryEpisodeText(entry) }));
-      const highlights = highlightEntries
-        .filter((entry) => highlightKeys.has(entry._entryKey) || entryHasEmbeddedHighlight(entry))
-        .slice(0, MAX_HIGHLIGHTS)
-        .map((entry) => ({ ...entry, _timeLabel: `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`, _meta: entryEpisodeText(entry) }));
-      renderHomeScheduleSummary({ todayRow, highlightRow, todayMonthKey, highlightMonthKey, todayKey, primeTime, highlights });
+      const tomorrowPrimeTime = tomorrowEntries
+        .filter((entry) => entry.date === tomorrowKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
+        .map((entry) => ({ ...entry, _timeLabel: formatTime(entry.time), _meta: entryEpisodeText(entry) }));
+
+      const highlightRows = [
+        [todayMonthKey, todayRow],
+        [nextHighlightMonthKey, nextHighlightRow]
+      ].filter(([monthKey, row], index, arr) => monthKey && row && arr.findIndex(([seenMonth]) => seenMonth === monthKey) === index);
+
+      const highlightGroups = await Promise.all(highlightRows.map(async ([monthKey, row]) => {
+        const keys = await getMonthlyHighlightMarks(cfg, monthKey);
+        const entries = entriesByMonth.get(monthKey) || entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {}));
+        return entries
+          .filter((entry) => keys.has(entry._entryKey) || entryHasEmbeddedHighlight(entry))
+          .map((entry) => ({ ...entry, _timeLabel: `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`, _meta: entryEpisodeText(entry) }));
+      }));
+      const highlights = highlightGroups.flat()
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+        .slice(0, MAX_HIGHLIGHTS);
+
+      renderHomeScheduleSummary({ todayRow, tomorrowRow, todayMonthKey, nextMonthKey: nextHighlightMonthKey, todayKey, tomorrowKey, todayPrimeTime, tomorrowPrimeTime, highlights });
     } catch (error) {
       console.warn("WNMU Home schedule summary failed.", error);
       renderHomeScheduleSummary(null);
