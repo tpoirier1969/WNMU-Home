@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.20-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.21-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -35,6 +35,9 @@
     passwordRecovery: false,
     authError: "",
     authMessage: "",
+    adminUserPanelOpen: false,
+    adminUserMessage: "",
+    adminUserError: "",
     rolesError: "",
     session: null,
     user: null,
@@ -130,6 +133,7 @@
   function isSignedIn() { return Boolean(homeState.user?.email); }
   function roleForApp(appKey) { return normalizeRole(homeState.roles.get(appKey)); }
   function hasAppAccess(appKey) { return isSignedIn() && roleRank(roleForApp(appKey)) >= ROLE_PRIORITY.viewer; }
+  function isHomeAdmin() { return isSignedIn() && roleRank(roleForApp(HOME_APP_KEY)) >= ROLE_PRIORITY.admin; }
   function setRole(appKey, role) {
     const normalized = normalizeRole(role);
     if (!appKey || !normalized) return;
@@ -257,6 +261,8 @@
     if (!isSignedIn()) {
       box.classList.add("hidden");
       box.innerHTML = "";
+      homeState.adminUserPanelOpen = false;
+      renderAdminUserPanel();
       return;
     }
     box.classList.remove("hidden");
@@ -265,18 +271,85 @@
       return `<div class="access-row"><span>${escapeHtml(app.title)}</span><strong class="access-role access-role--${escapeHtml(role || "none")}">${escapeHtml(roleLabel(role))}</strong></div>`;
     }).join("");
     const warning = homeState.rolesError ? `<div class="access-warning">${escapeHtml(homeState.rolesError)}</div>` : "";
+    const changePasswordAction = `<button type="button" class="button secondary access-admin-button" id="homeChangePasswordButton">Change password</button>`;
+    const adminAction = isHomeAdmin() ? `<button type="button" class="button secondary access-admin-button" id="homeManageUsersButton">Manage users</button>` : "";
     box.innerHTML = `
       <div class="access-head">
         <div>
           <div class="access-kicker">Signed in</div>
           <div class="access-title">${escapeHtml(displayUserName())}</div>
         </div>
-        <div class="access-home-role">Home: ${escapeHtml(roleLabel(roleForApp(HOME_APP_KEY)))}</div>
+        <div class="access-head-actions">
+          <div class="access-home-role">Home: ${escapeHtml(roleLabel(roleForApp(HOME_APP_KEY)))}</div>
+          ${changePasswordAction}
+          ${adminAction}
+        </div>
       </div>
       <div class="access-grid">${rows}</div>
       ${warning}
     `;
+    box.querySelector("#homeChangePasswordButton")?.addEventListener("click", () => {
+      homeState.authDrawerOpen = true;
+      homeState.passwordRecovery = true;
+      homeState.authMessage = "Enter a new password for this account.";
+      homeState.authError = "";
+      setAuthPanel("update");
+      renderAuthControls();
+      window.setTimeout(() => document.getElementById("homeNewPassword")?.focus(), 0);
+    });
+    box.querySelector("#homeManageUsersButton")?.addEventListener("click", () => {
+      homeState.adminUserPanelOpen = true;
+      homeState.adminUserError = "";
+      homeState.adminUserMessage = "";
+      renderAdminUserPanel();
+      window.setTimeout(() => document.getElementById("homeAdminUserEmail")?.focus(), 0);
+    });
+    renderAdminUserPanel();
   }
+  function setRoleFieldsVisible() {
+    const checked = Boolean(document.getElementById("homeAdminUpdateRoles")?.checked);
+    document.getElementById("homeAdminRoleFields")?.classList.toggle("hidden", !checked);
+  }
+  function renderAdminUserPanel() {
+    const panel = document.getElementById("homeAdminUserPanel");
+    const message = document.getElementById("homeAdminUserMessage");
+    if (!panel) return;
+    const show = isHomeAdmin() && homeState.adminUserPanelOpen;
+    panel.classList.toggle("hidden", !show);
+    if (!isHomeAdmin()) homeState.adminUserPanelOpen = false;
+    if (message) {
+      message.textContent = homeState.adminUserError || homeState.adminUserMessage || "";
+      message.classList.toggle("warn", Boolean(homeState.adminUserError));
+    }
+    setRoleFieldsVisible();
+  }
+  function generateTempPassword(length = 16) {
+    const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
+    const values = new Uint32Array(length);
+    window.crypto?.getRandomValues?.(values);
+    return Array.from(values, (value, index) => chars[(value || Math.floor(Math.random() * chars.length) + index) % chars.length]).join("");
+  }
+  function adminRolePayload() {
+    return {
+      [HOME_APP_KEY]: normalizeRole(document.getElementById("homeAdminRoleHome")?.value || ""),
+      programming_library: normalizeRole(document.getElementById("homeAdminRoleProgramming")?.value || ""),
+      pledge_library: normalizeRole(document.getElementById("homeAdminRolePledge")?.value || ""),
+      monthly_schedules: normalizeRole(document.getElementById("homeAdminRoleSchedules")?.value || ""),
+      monthly_sales: normalizeRole(document.getElementById("homeAdminRoleSales")?.value || "")
+    };
+  }
+  async function friendlyFunctionError(error) {
+    const fallback = error?.message || "User management failed.";
+    const context = error?.context;
+    if (!context || typeof context.json !== "function") return fallback;
+    try {
+      const body = await context.json();
+      return body?.error || body?.message || fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   function renderAuthControls() {
     const chip = document.getElementById("homeAuthChip");
     const loginButton = document.getElementById("homeLoginButton");
@@ -293,6 +366,7 @@
       message.classList.toggle("warn", Boolean(homeState.authError));
     }
     renderAccessPanel();
+    renderAdminUserPanel();
   }
   function renderHomeShell() {
     renderAppGrid();
@@ -433,6 +507,9 @@
       homeState.roles = new Map();
       homeState.rolesError = "";
       homeState.displayName = "";
+      homeState.adminUserPanelOpen = false;
+      homeState.adminUserMessage = "";
+      homeState.adminUserError = "";
     }
     renderHomeShell();
     refreshPrivateHomeSections();
@@ -449,11 +526,19 @@
     const resetForm = document.getElementById("homePasswordResetForm");
     const createForm = document.getElementById("homeCreateAccountForm");
     const updateForm = document.getElementById("homePasswordUpdateForm");
+    const adminUserForm = document.getElementById("homeAdminUserForm");
+    const adminUserCloseButton = document.getElementById("homeAdminUserCloseButton");
+    const generateTempPasswordButton = document.getElementById("homeGenerateTempPasswordButton");
+    const updateRolesCheckbox = document.getElementById("homeAdminUpdateRoles");
 
     document.querySelectorAll("[data-close-auth-panel]").forEach((button) => {
       button.addEventListener("click", () => {
         homeState.authError = "";
         homeState.authMessage = "";
+        if (isSignedIn()) {
+          homeState.passwordRecovery = false;
+          homeState.authDrawerOpen = false;
+        }
         setAuthPanel("sign-in");
         renderAuthControls();
       });
@@ -509,10 +594,8 @@
       homeState.authDrawerOpen = true;
       homeState.authError = "";
       homeState.authMessage = "";
-      copyLoginEmailToField("homeCreateEmail");
       setAuthPanel("create");
       renderAuthControls();
-      window.setTimeout(() => document.getElementById("homeCreateEmail")?.focus(), 0);
     });
     if (form) form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -565,41 +648,82 @@
         renderAuthControls();
       }
     });
-    if (createForm) createForm.addEventListener("submit", async (event) => {
+    if (createForm) createForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      const email = normalizeEmail(document.getElementById("homeCreateEmail")?.value || "");
-      const password = String(document.getElementById("homeCreatePassword")?.value || "");
-      const confirm = String(document.getElementById("homeCreatePasswordConfirm")?.value || "");
-      if (!email || !email.includes("@")) {
-        homeState.authError = "Enter a real NMU email address.";
-        homeState.authMessage = "";
-        renderAuthControls();
-        return;
-      }
-      if (password.length < 8 || password !== confirm) {
-        homeState.authError = password.length < 8 ? "Use at least 8 characters for the password." : "The password fields do not match.";
-        homeState.authMessage = "";
-        renderAuthControls();
-        return;
-      }
-      homeState.authMessage = "Creating account…";
+      homeState.authMessage = "Ask the WNMU Home administrator for a temporary password, then sign in here.";
       homeState.authError = "";
+      setAuthPanel("sign-in");
       renderAuthControls();
+    });
+    if (adminUserCloseButton) adminUserCloseButton.addEventListener("click", () => {
+      homeState.adminUserPanelOpen = false;
+      homeState.adminUserError = "";
+      homeState.adminUserMessage = "";
+      renderAdminUserPanel();
+    });
+    if (generateTempPasswordButton) generateTempPasswordButton.addEventListener("click", () => {
+      const field = document.getElementById("homeAdminTempPassword");
+      if (field) {
+        field.value = generateTempPassword();
+        field.select?.();
+      }
+      homeState.adminUserError = "";
+      homeState.adminUserMessage = "Generated a temporary password. Copy it before sending the form or closing this panel.";
+      renderAdminUserPanel();
+    });
+    if (updateRolesCheckbox) updateRolesCheckbox.addEventListener("change", () => {
+      setRoleFieldsVisible();
+    });
+    if (adminUserForm) adminUserForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!isHomeAdmin()) {
+        homeState.adminUserError = "Only Home admins can manage users.";
+        homeState.adminUserMessage = "";
+        renderAdminUserPanel();
+        return;
+      }
+      const loginId = normalizeLoginIdentifier(document.getElementById("homeAdminUserEmail")?.value || "");
+      const displayName = normalizeText(document.getElementById("homeAdminDisplayName")?.value || "");
+      const temporaryPassword = String(document.getElementById("homeAdminTempPassword")?.value || "");
+      const updateRoles = Boolean(document.getElementById("homeAdminUpdateRoles")?.checked);
+      if (!loginId || !loginId.includes("@")) {
+        homeState.adminUserError = "Enter an NMU email address or an internal username such as student.";
+        homeState.adminUserMessage = "";
+        renderAdminUserPanel();
+        return;
+      }
+      if (temporaryPassword.length < 8) {
+        homeState.adminUserError = "Use at least 8 characters for the temporary password.";
+        homeState.adminUserMessage = "";
+        renderAdminUserPanel();
+        return;
+      }
+      homeState.adminUserMessage = "Creating or resetting the Supabase user…";
+      homeState.adminUserError = "";
+      renderAdminUserPanel();
       try {
         const client = await ensureHomeAuthClient();
-        const { error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: authRedirectUrl() } });
+        const { data, error } = await client.functions.invoke("wnmu-admin-user", {
+          body: {
+            action: "createOrResetUser",
+            email: loginId,
+            displayName,
+            temporaryPassword,
+            updateRoles,
+            roles: updateRoles ? adminRolePayload() : {}
+          }
+        });
         if (error) throw error;
-        homeState.authMessage = "Supabase will email a confirmation link. After confirming, speak with Tod about module permissions.";
-        homeState.authError = "";
-        setAuthPanel("sign-in");
-        createForm.reset();
-        renderAuthControls();
+        homeState.adminUserMessage = `${data?.email || loginId} is ready. Give them the temporary password directly.${data?.rolesUpdated ? " Module permissions were updated." : " Existing module permissions were left unchanged."}`;
+        homeState.adminUserError = "";
+        renderAdminUserPanel();
       } catch (error) {
-        homeState.authError = error?.message || "Account creation failed.";
-        homeState.authMessage = "";
-        renderAuthControls();
+        homeState.adminUserError = await friendlyFunctionError(error);
+        homeState.adminUserMessage = "";
+        renderAdminUserPanel();
       }
     });
+
     if (updateForm) updateForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const password = String(document.getElementById("homeNewPassword")?.value || "");

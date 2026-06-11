@@ -424,3 +424,143 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     grid-template-columns:1fr;
   }
 }
+
+/* v1.0.21 admin-created accounts and temp password reset */
+.access-head-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-end;
+}
+.access-admin-button{
+  min-height:32px;
+  padding:6px 10px;
+  font-size:.78rem;
+}
+.admin-user-panel{
+  margin-top:14px;
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 9px 22px rgba(15,23,42,.055);
+}
+.admin-user-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:12px;
+}
+.admin-user-head h2{
+  margin:0;
+  color:#17345f;
+  letter-spacing:-.035em;
+  font-size:1.16rem;
+}
+.admin-user-head p{
+  margin:4px 0 0;
+  color:#5a6878;
+  font-size:.86rem;
+  line-height:1.35;
+  font-weight:700;
+}
+.admin-user-form{
+  display:grid;
+  gap:12px;
+}
+.admin-user-grid{
+  display:grid;
+  grid-template-columns:minmax(190px,1.1fr) minmax(170px,.9fr) minmax(150px,.8fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.admin-user-grid label,
+.admin-roles-grid label{
+  display:grid;
+  gap:4px;
+  color:#425466;
+  font-size:.72rem;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+.admin-user-grid input,
+.admin-roles-grid select{
+  min-height:38px;
+  border:1px solid var(--border);
+  border-radius:11px;
+  padding:8px 10px;
+  background:#fff;
+  color:var(--text);
+  font:inherit;
+  text-transform:none;
+  letter-spacing:0;
+}
+.admin-user-check{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  color:#314154;
+  font-size:.86rem;
+  font-weight:800;
+}
+.admin-user-check input{
+  width:18px;
+  height:18px;
+}
+.admin-roles-grid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(130px,1fr));
+  gap:10px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:#fbfcfe;
+}
+.admin-user-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+.admin-user-hint{
+  color:#5a6878;
+  font-size:.82rem;
+  font-weight:750;
+}
+.admin-user-message{
+  min-height:18px;
+  margin-top:10px;
+  color:#315f8c;
+  font-size:.84rem;
+  font-weight:800;
+  line-height:1.35;
+}
+.admin-user-message.warn{
+  color:#9a3412;
+}
+@media(max-width:980px){
+  .admin-user-grid{
+    grid-template-columns:1fr 1fr;
+  }
+  .admin-roles-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
+@media(max-width:620px){
+  .admin-user-head,
+  .access-head-actions{
+    display:grid;
+    justify-content:stretch;
+  }
+  .admin-user-grid,
+  .admin-roles-grid{
+    grid-template-columns:1fr;
+  }
+  .admin-user-actions .button,
+  .admin-user-head .button{
+    width:100%;
+  }
+}

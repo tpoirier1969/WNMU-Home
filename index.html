@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WNMU Home</title>
   <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
-  <link rel="stylesheet" href="styles.css?v=v1.0.20-r2026-06-11">
+  <link rel="stylesheet" href="styles.css?v=v1.0.21-r2026-06-11">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,7 +28,7 @@
         <button type="button" class="login-placeholder-button hidden" id="homeLogoutButton">Log out</button>
         <div class="version-pill" aria-label="Portal version">
           <span>Portal</span>
-          <strong>v1.0.20-r2026-06-11</strong>
+          <strong>v1.0.21-r2026-06-11</strong>
         </div>
       </div>
     </header>
@@ -53,7 +53,7 @@
         </div>
         <div class="home-auth-help">
           <button type="button" class="text-button" id="homeForgotLoginButton">Forgot password?</button>
-          <button type="button" class="text-button" id="homeRequestAccountButton">Create account</button>
+          <button type="button" class="text-button" id="homeRequestAccountButton">Request access</button>
         </div>
       </form>
 
@@ -72,26 +72,12 @@
         <button type="button" class="text-button home-auth-panel-close" data-close-auth-panel>Back to sign in</button>
       </form>
 
-      <form class="home-auth-form home-auth-panel hidden" id="homeCreateAccountForm" aria-label="Create account">
+      <form class="home-auth-form home-auth-panel hidden" id="homeCreateAccountForm" aria-label="Request access">
         <div class="home-auth-panel-head">
-          <strong>Create account</strong>
-          <span>Use your NMU email and choose a password. After confirming the email link, speak with Tod about permissions for the different modules.</span>
+          <strong>Request access</strong>
+          <span>Accounts are now created by the WNMU Home administrator. Ask Tod for a temporary password, then sign in here and change it.</span>
         </div>
-        <div class="home-auth-fields home-auth-fields--account">
-          <label>
-            <span>Email</span>
-            <input type="email" id="homeCreateEmail" autocomplete="email" spellcheck="false" required>
-          </label>
-          <label>
-            <span>Password</span>
-            <input type="password" id="homeCreatePassword" autocomplete="new-password" required minlength="8">
-          </label>
-          <label>
-            <span>Confirm password</span>
-            <input type="password" id="homeCreatePasswordConfirm" autocomplete="new-password" required minlength="8">
-          </label>
-          <button type="submit" class="button home-auth-submit">Create account</button>
-        </div>
+        <p class="home-auth-note">This avoids Supabase email quotas and keeps module permissions separate from account creation.</p>
         <button type="button" class="text-button home-auth-panel-close" data-close-auth-panel>Back to sign in</button>
       </form>
 
@@ -111,6 +97,7 @@
           </label>
           <button type="submit" class="button home-auth-submit">Save password</button>
         </div>
+        <button type="button" class="text-button home-auth-panel-close" data-close-auth-panel>Cancel</button>
       </form>
       <div class="home-auth-message" id="homeAuthMessage"></div>
     </section>
@@ -121,11 +108,95 @@
 
     <section class="access-panel hidden" id="homeAccessPanel" aria-live="polite" aria-label="Signed-in module access"></section>
 
+    <section class="admin-user-panel hidden" id="homeAdminUserPanel" aria-live="polite" aria-label="Manage WNMU Home users">
+      <div class="admin-user-head">
+        <div>
+          <div class="access-kicker">Admin</div>
+          <h2>Manage users</h2>
+          <p>Create a Supabase login or reset an existing user with a temporary password. No Supabase email is sent.</p>
+        </div>
+        <button type="button" class="button secondary" id="homeAdminUserCloseButton">Close</button>
+      </div>
+      <form class="admin-user-form" id="homeAdminUserForm">
+        <div class="admin-user-grid">
+          <label>
+            <span>Email or internal login</span>
+            <input type="text" id="homeAdminUserEmail" autocomplete="off" spellcheck="false" placeholder="nkauppi@nmu.edu" required>
+          </label>
+          <label>
+            <span>Display name</span>
+            <input type="text" id="homeAdminDisplayName" autocomplete="off" spellcheck="false" placeholder="Nikki Walsh">
+          </label>
+          <label>
+            <span>Temporary password</span>
+            <input type="text" id="homeAdminTempPassword" autocomplete="off" spellcheck="false" required minlength="8">
+          </label>
+          <button type="button" class="button secondary" id="homeGenerateTempPasswordButton">Generate</button>
+        </div>
+        <label class="admin-user-check">
+          <input type="checkbox" id="homeAdminUpdateRoles">
+          <span>Also update module permissions now</span>
+        </label>
+        <div class="admin-roles-grid hidden" id="homeAdminRoleFields">
+          <label>
+            <span>Home</span>
+            <select id="homeAdminRoleHome">
+              <option value="">No access</option>
+              <option value="viewer" selected>Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>
+            <span>Programming Library</span>
+            <select id="homeAdminRoleProgramming">
+              <option value="" selected>No access</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>
+            <span>Pledge Library</span>
+            <select id="homeAdminRolePledge">
+              <option value="" selected>No access</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>
+            <span>Monthly Schedules</span>
+            <select id="homeAdminRoleSchedules">
+              <option value="" selected>No access</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>
+            <span>Monthly Sales</span>
+            <select id="homeAdminRoleSales">
+              <option value="" selected>No access</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+        </div>
+        <div class="admin-user-actions">
+          <button type="submit" class="button">Create / reset user</button>
+          <span class="admin-user-hint">Copy the temporary password before you close this panel.</span>
+        </div>
+      </form>
+      <div class="admin-user-message" id="homeAdminUserMessage"></div>
+    </section>
+
     <section class="drive-summary-panel hidden" id="pledgeDriveSummary" aria-live="polite" aria-label="Current pledge drive summary"></section>
 
     <section class="schedule-panel hidden" id="homeScheduleSummary" aria-live="polite" aria-label="WNMU 13.1 schedule summary"></section>
   </main>
 
-  <script src="app.js?v=v1.0.20-r2026-06-11"></script>
+  <script src="app.js?v=v1.0.21-r2026-06-11"></script>
 </body>
 </html>
