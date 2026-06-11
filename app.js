@@ -1,9 +1,10 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.13-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.14-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
+  const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
   const MONTHLY_CHANNEL = "13.1";
   const MONTHLY_PAGE = "index131.v1.4.1.html";
@@ -183,6 +184,124 @@
     });
     if (!res.ok) throw new Error(`Monthly schedule read failed (${res.status})`);
     return res.json();
+  }
+  async function loadProgrammingConfig() {
+    if (!window.APP_CONFIG) await loadScript(`${PROGRAMMING_APP_ROOT}/config.js?portal=${encodeURIComponent(PORTAL_VERSION)}&t=${Date.now()}`);
+    const cfg = window.APP_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) throw new Error("Programming Library config is not available yet.");
+    return cfg;
+  }
+  async function externalRestSelectPaged(cfg, pathAndQuery, maxRows = 5000) {
+    const urlRoot = cfg.SUPABASE_URL || cfg.url || "";
+    const anonKey = cfg.SUPABASE_ANON_KEY || cfg.anonKey || "";
+    if (!urlRoot || !anonKey) throw new Error("External Supabase config is not available.");
+    const pageSize = 1000;
+    const out = [];
+    let offset = 0;
+    while (offset < maxRows) {
+      const sep = pathAndQuery.includes("?") ? "&" : "?";
+      const res = await fetch(`${urlRoot}${pathAndQuery}${sep}limit=${pageSize}&offset=${offset}`, {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+        cache: "no-store"
+      });
+      if (!res.ok) throw new Error(`External library read failed (${res.status})`);
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) break;
+      out.push(...rows);
+      if (rows.length < pageSize) break;
+      offset += pageSize;
+    }
+    return out;
+  }
+  function firstField(row = {}, fields = []) {
+    for (const field of fields) {
+      const value = normalizeText(row?.[field]);
+      if (value) return value;
+    }
+    return "";
+  }
+  function normalizeLibraryTitleKey(value) {
+    return normalizeText(value)
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+  function libraryRecordFromRow(row = {}, source = "") {
+    const title = firstField(row, ["title", "program_title", "name"]);
+    const description = firstField(row, ["notes", "program_notes", "description", "summary"]);
+    const key = normalizeLibraryTitleKey(title);
+    if (!title || !description || !key) return null;
+    return { source, title, key, description };
+  }
+  function uniqueLibraryMatches(matches = []) {
+    const seen = new Set();
+    const out = [];
+    matches.forEach((item) => {
+      if (!item?.description) return;
+      const key = `${item.source}|${item.key}|${normalizeLibraryTitleKey(item.description)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(item);
+    });
+    return out;
+  }
+  async function loadProgrammingLibraryRecords() {
+    try {
+      const cfg = await loadProgrammingConfig();
+      const rows = await externalRestSelectPaged(cfg, "/rest/v1/programs_enriched?select=*", 5000);
+      return rows.map((row) => libraryRecordFromRow(row, "Program Library")).filter(Boolean);
+    } catch (error) {
+      console.warn("WNMU Home Programming Library title descriptions failed.", error);
+      return [];
+    }
+  }
+  async function loadPledgeLibraryRecordsForDescriptions() {
+    try {
+      const cfg = await loadPledgeConfig();
+      let rows = [];
+      try {
+        rows = await externalRestSelectPaged(cfg, "/rest/v1/pledge_program_library_summary_v2?select=*", 5000);
+      } catch (summaryError) {
+        console.warn("WNMU Home Pledge summary description read failed; trying base table.", summaryError);
+        rows = await externalRestSelectPaged(cfg, "/rest/v1/pledge_programs_v2?select=*", 5000);
+      }
+      return rows.map((row) => libraryRecordFromRow(row, "Pledge Library")).filter(Boolean);
+    } catch (error) {
+      console.warn("WNMU Home Pledge Library title descriptions failed.", error);
+      return [];
+    }
+  }
+  async function loadScheduleDescriptionIndex() {
+    const results = await Promise.allSettled([loadProgrammingLibraryRecords(), loadPledgeLibraryRecordsForDescriptions()]);
+    const records = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+    const exact = new Map();
+    records.forEach((record) => {
+      if (!exact.has(record.key)) exact.set(record.key, []);
+      exact.get(record.key).push(record);
+    });
+    return { records, exact, cache: new Map() };
+  }
+  function descriptionForScheduleTitle(rawTitle = "", index = null) {
+    if (!index?.records?.length) return "";
+    const key = normalizeLibraryTitleKey(rawTitle);
+    if (!key || key.length < 4) return "";
+    if (index.cache.has(key)) return index.cache.get(key);
+
+    const exactMatches = uniqueLibraryMatches(index.exact.get(key) || []);
+    if (exactMatches.length === 1) {
+      index.cache.set(key, exactMatches[0].description);
+      return exactMatches[0].description;
+    }
+
+    const partialMatches = uniqueLibraryMatches(index.records.filter((record) => {
+      if (record.key === key) return false;
+      if (key.length < 8) return false;
+      return record.key.startsWith(key) || record.key.includes(` ${key} `) || key.startsWith(record.key);
+    }));
+    const description = partialMatches.length === 1 ? partialMatches[0].description : "";
+    index.cache.set(key, description);
+    return description;
   }
 
   function normalizeSchedule(row = {}) {
@@ -460,14 +579,17 @@
   function displayTitleForEntry(entry = {}, mark = {}) {
     return boxNoteTextFromMark(mark) || entry.title || "";
   }
-  function decorateScheduleEntry(entry, marksMap, timeLabel) {
+  function decorateScheduleEntry(entry, marksMap, timeLabel, descriptionIndex = null) {
     const mark = findMarkForEntry(entry, marksMap);
+    const displayTitle = displayTitleForEntry(entry, mark);
+    const description = descriptionForScheduleTitle(displayTitle, descriptionIndex) || descriptionForScheduleTitle(entry.title, descriptionIndex);
     return {
       ...entry,
-      title: displayTitleForEntry(entry, mark),
+      title: displayTitle,
       _timeLabel: timeLabel,
       _meta: entryEpisodeText(entry),
-      _tags: featuredTagLabelsForEntry(entry, mark)
+      _tags: featuredTagLabelsForEntry(entry, mark),
+      _description: description
     };
   }
   async function getMonthlySharedMarks(cfg, monthKey) {
@@ -504,15 +626,21 @@
     return marks;
   }
   function renderScheduleList(entries, className = "schedule-list") {
-    return `<ul class="${className}">${entries.map((entry) => `
+    return `<ul class="${className}">${entries.map((entry) => {
+      const descriptionAttr = entry._description ? ` title="${escapeHtml(entry._description)}" aria-label="${escapeHtml(`${entry.title}. ${entry._description}`)}"` : "";
+      const titleClass = `schedule-program-title${entry._description ? " has-library-description" : ""}`;
+      const tagsHtml = entry._tags?.length ? `<span class="schedule-tag-row-inline">${entry._tags.map((tag) => `<span class="schedule-feature-tag">${escapeHtml(tag)}</span>`).join("")}</span>` : "";
+      const metaHtml = entry._meta ? `<span class="schedule-program-meta-text">${escapeHtml(entry._meta)}</span>` : "";
+      const combinedMeta = tagsHtml || metaHtml ? `<div class="schedule-program-meta schedule-program-meta-line">${tagsHtml}${metaHtml}</div>` : "";
+      return `
       <li class="schedule-list-item">
         <div class="schedule-time">${escapeHtml(entry._timeLabel)}</div>
         <div>
-          <div class="schedule-program-title">${escapeHtml(entry.title)}</div>
-          ${entry._tags?.length ? `<div class="schedule-tag-row">${entry._tags.map((tag) => `<span class="schedule-feature-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
-          ${entry._meta ? `<div class="schedule-program-meta">${escapeHtml(entry._meta)}</div>` : ""}
+          <div class="${titleClass}"${descriptionAttr}>${escapeHtml(entry.title)}</div>
+          ${combinedMeta}
         </div>
-      </li>`).join("")}</ul>`;
+      </li>`;
+    }).join("")}</ul>`;
   }
   function renderScheduleSummaryStatus(message) {
     const box = document.getElementById("homeScheduleSummary");
@@ -568,6 +696,10 @@
     renderScheduleSummaryStatus("Loading WNMU 13.1 schedule…");
     try {
       const cfg = await loadMonthlyConfig();
+      const descriptionIndexPromise = loadScheduleDescriptionIndex().catch((error) => {
+        console.warn("WNMU Home library description lookup skipped.", error);
+        return null;
+      });
       const todayKey = localTodayKey();
       const tomorrowKey = plusDays(todayKey, 1);
       const todayMonthKey = monthKeyFromDateKey(todayKey);
@@ -594,16 +726,17 @@
         if (row) sharedMarksByMonth.set(monthKey, await getMonthlyMarks(cfg, row));
       }
 
+      const descriptionIndex = await descriptionIndexPromise;
       const todayEntries = entriesByMonth.get(todayMonthKey) || [];
       const tomorrowEntries = entriesByMonth.get(tomorrowMonthKey) || [];
       const todayMarks = sharedMarksByMonth.get(todayMonthKey) || new Map();
       const tomorrowMarks = sharedMarksByMonth.get(tomorrowMonthKey) || new Map();
       const todayPrimeTime = todayEntries
         .filter((entry) => entry.date === todayKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => decorateScheduleEntry(entry, todayMarks, formatTime(entry.time)));
+        .map((entry) => decorateScheduleEntry(entry, todayMarks, formatTime(entry.time), descriptionIndex));
       const tomorrowPrimeTime = tomorrowEntries
         .filter((entry) => entry.date === tomorrowKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => decorateScheduleEntry(entry, tomorrowMarks, formatTime(entry.time)));
+        .map((entry) => decorateScheduleEntry(entry, tomorrowMarks, formatTime(entry.time), descriptionIndex));
 
       const highlightRows = [
         [todayMonthKey, todayRow],
@@ -615,7 +748,7 @@
         const entries = entriesByMonth.get(monthKey) || entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {}));
         return entries
           .filter((entry) => featuredTagLabelsForEntry(entry, findMarkForEntry(entry, marks)).length > 0)
-          .map((entry) => decorateScheduleEntry(entry, marks, `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`));
+          .map((entry) => decorateScheduleEntry(entry, marks, `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`, descriptionIndex));
       }));
       const highlights = highlightGroups.flat()
         .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))

@@ -212,3 +212,75 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     grid-template-columns:1fr;
   }
 }
+
+/* v1.0.14 four-column schedule grid, compact feature metadata, library title tooltips */
+.schedule-content-grid-home{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:start;
+}
+.schedule-prime-stack{
+  grid-column:span 1;
+}
+.schedule-block-highlights{
+  grid-column:span 3;
+}
+.schedule-block-highlights .highlights-list{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;
+}
+.schedule-program-meta-line{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.schedule-tag-row-inline{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.schedule-program-meta-text{
+  flex:0 0 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.schedule-program-title.has-library-description{
+  cursor:help;
+  text-decoration-line:underline;
+  text-decoration-style:dotted;
+  text-decoration-thickness:1px;
+  text-underline-offset:2px;
+}
+@media(max-width:1120px){
+  .schedule-content-grid-home{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .schedule-prime-stack{
+    grid-column:span 1;
+  }
+  .schedule-block-highlights{
+    grid-column:span 1;
+  }
+  .schedule-block-highlights .highlights-list{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:760px){
+  .schedule-content-grid-home{
+    grid-template-columns:1fr;
+  }
+  .schedule-prime-stack,
+  .schedule-block-highlights{
+    grid-column:auto;
+  }
+  .schedule-block-highlights .highlights-list{
+    grid-template-columns:1fr;
+  }
+}
