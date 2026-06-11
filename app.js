@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.17-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.19-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -21,6 +21,7 @@
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
   const SUPABASE_JS_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   const ROLE_TABLE_NAME = "wnmu_app_user_roles";
+  const INTERNAL_LOGIN_DOMAIN = "local.wnmu";
   const BOOTSTRAP_ADMIN_EMAILS = ["tpoirier@nmu.edu"];
   const ROLE_PRIORITY = { none: 0, viewer: 1, editor: 2, admin: 3 };
   const ROLE_LABELS = { viewer: "Viewer", editor: "Editor", admin: "Admin" };
@@ -112,6 +113,12 @@
   }
 
   function normalizeEmail(value) { return normalizeText(value).toLowerCase(); }
+  function normalizeLoginIdentifier(value) {
+    const raw = normalizeText(value);
+    if (!raw) return "";
+    if (raw.includes("@")) return raw.toLowerCase();
+    return `${raw.toLowerCase().replace(/\s+/g, "-")}@${INTERNAL_LOGIN_DOMAIN}`;
+  }
   function normalizeRole(value) {
     const role = normalizeText(value).toLowerCase();
     return Object.prototype.hasOwnProperty.call(ROLE_PRIORITY, role) && role !== "none" ? role : "";
@@ -289,6 +296,19 @@
     renderAppGrid();
     renderAuthControls();
   }
+  function hidePledgeDriveSummary() {
+    const box = document.getElementById("pledgeDriveSummary");
+    if (!box) return;
+    box.classList.add("hidden");
+    box.innerHTML = "";
+  }
+  function refreshPrivateHomeSections() {
+    if (!isSignedIn()) {
+      hidePledgeDriveSummary();
+      return;
+    }
+    void loadPledgeDriveSummary();
+  }
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -386,12 +406,16 @@
       homeState.displayName = "";
     }
     renderHomeShell();
+    refreshPrivateHomeSections();
   }
   function bindHomeAuthEvents() {
     if (homeState.authBound) return;
     homeState.authBound = true;
     const loginButton = document.getElementById("homeLoginButton");
     const logoutButton = document.getElementById("homeLogoutButton");
+    const githubButton = document.getElementById("homeGithubLoginButton");
+    const forgotButton = document.getElementById("homeForgotLoginButton");
+    const requestButton = document.getElementById("homeRequestAccountButton");
     const form = document.getElementById("homeLoginForm");
     if (loginButton) loginButton.addEventListener("click", () => {
       homeState.authDrawerOpen = !homeState.authDrawerOpen;
@@ -410,19 +434,44 @@
         renderAuthControls();
       }
     });
+    if (githubButton) githubButton.addEventListener("click", async () => {
+      homeState.authMessage = "Opening GitHub sign in…";
+      homeState.authError = "";
+      renderAuthControls();
+      try {
+        const client = await ensureHomeAuthClient();
+        const redirectTo = window.location.href.split("#")[0];
+        const { error } = await client.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
+        if (error) throw error;
+      } catch (error) {
+        homeState.authError = error?.message || "GitHub sign in failed.";
+        homeState.authMessage = "";
+        renderAuthControls();
+      }
+    });
+    if (forgotButton) forgotButton.addEventListener("click", () => {
+      homeState.authError = "";
+      homeState.authMessage = "If you use GitHub/NMU, reset your password there. For an internal username such as student, ask a WNMU admin to reset the password.";
+      renderAuthControls();
+    });
+    if (requestButton) requestButton.addEventListener("click", () => {
+      homeState.authError = "";
+      homeState.authMessage = "Ask Tod or a WNMU admin to create the account and assign module access. Self-service account creation is not enabled yet.";
+      renderAuthControls();
+    });
     if (form) form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const emailInput = document.getElementById("homeLoginEmail");
       const passwordInput = document.getElementById("homeLoginPassword");
-      const email = normalizeText(emailInput?.value || "");
+      const loginId = normalizeLoginIdentifier(emailInput?.value || "");
       const password = String(passwordInput?.value || "");
-      if (!email || !password) return;
+      if (!loginId || !password) return;
       homeState.authMessage = "Signing in…";
       homeState.authError = "";
       renderAuthControls();
       try {
         const client = await ensureHomeAuthClient();
-        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        const { data, error } = await client.auth.signInWithPassword({ email: loginId, password });
         if (error) throw error;
         homeState.authDrawerOpen = false;
         if (passwordInput) passwordInput.value = "";
@@ -816,10 +865,22 @@
   async function loadPledgeDriveSummary() {
     const box = document.getElementById("pledgeDriveSummary");
     if (!box) return;
+    if (!isSignedIn()) {
+      hidePledgeDriveSummary();
+      return;
+    }
     renderDriveSummaryStatus("Checking current pledge drive totals…");
     try {
       const cfg = await loadPledgeConfig();
+      if (!isSignedIn()) {
+        hidePledgeDriveSummary();
+        return;
+      }
       const rows = await restSelect(cfg, "/rest/v1/pledge_fundraiser_schedules?select=*&order=start_date.asc&order=title.asc");
+      if (!isSignedIn()) {
+        hidePledgeDriveSummary();
+        return;
+      }
       const schedules = sortSchedulesNewestFirst((Array.isArray(rows) ? rows : []).map(normalizeSchedule));
       renderDriveSummary(schedules.find((schedule) => scheduleDriveSummaryWindow(schedule).show) || null);
     } catch (error) {
@@ -1152,8 +1213,8 @@
   function init() {
     document.title = `WNMU Home • ${PORTAL_VERSION}`;
     renderHomeShell();
+    hidePledgeDriveSummary();
     void initHomeAuth();
-    void loadPledgeDriveSummary();
     void loadHomeScheduleSummary();
   }
 

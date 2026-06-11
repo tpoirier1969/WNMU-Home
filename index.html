@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WNMU Home</title>
   <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
-  <link rel="stylesheet" href="styles.css?v=v1.0.17-r2026-06-11">
+  <link rel="stylesheet" href="styles.css?v=v1.0.19-r2026-06-11">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,23 +28,31 @@
         <button type="button" class="login-placeholder-button hidden" id="homeLogoutButton">Log out</button>
         <div class="version-pill" aria-label="Portal version">
           <span>Portal</span>
-          <strong>v1.0.17-r2026-06-11</strong>
+          <strong>v1.0.19-r2026-06-11</strong>
         </div>
       </div>
     </header>
 
     <section class="home-auth-drawer hidden" id="homeAuthDrawer" aria-label="WNMU Home sign in">
       <form class="home-auth-form" id="homeLoginForm">
+        <div class="home-auth-primary">
+          <button type="button" class="button home-auth-submit home-github-submit" id="homeGithubLoginButton">Sign in with GitHub</button>
+          <div class="home-auth-divider"><span>or</span></div>
+        </div>
         <div class="home-auth-fields">
           <label>
-            <span>Email</span>
-            <input type="email" id="homeLoginEmail" autocomplete="email" required>
+            <span>Username or email</span>
+            <input type="text" id="homeLoginEmail" autocomplete="username" spellcheck="false" required>
           </label>
           <label>
             <span>Password</span>
             <input type="password" id="homeLoginPassword" autocomplete="current-password" required>
           </label>
-          <button type="submit" class="button home-auth-submit">Sign in</button>
+          <button type="submit" class="button home-auth-submit">Sign in with password</button>
+        </div>
+        <div class="home-auth-help">
+          <button type="button" class="text-button" id="homeForgotLoginButton">Forgot login?</button>
+          <button type="button" class="text-button" id="homeRequestAccountButton">Request account</button>
         </div>
         <div class="home-auth-message" id="homeAuthMessage"></div>
       </form>
@@ -61,6 +69,6 @@
     <section class="schedule-panel hidden" id="homeScheduleSummary" aria-live="polite" aria-label="WNMU 13.1 schedule summary"></section>
   </main>
 
-  <script src="app.js?v=v1.0.17-r2026-06-11"></script>
+  <script src="app.js?v=v1.0.19-r2026-06-11"></script>
 </body>
 </html>

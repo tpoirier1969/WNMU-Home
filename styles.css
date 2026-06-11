@@ -321,3 +321,52 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
   line-height:1.08;
   margin-top:1px;
 }
+
+/* v1.0.19 Home sign-in methods */
+.home-auth-primary{
+  display:grid;
+  gap:8px;
+}
+.home-github-submit{
+  justify-self:start;
+  background:#17345f;
+}
+.home-auth-divider{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--muted);
+  font-size:.72rem;
+  font-weight:850;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.home-auth-divider::before,
+.home-auth-divider::after{
+  content:"";
+  height:1px;
+  background:var(--border);
+  flex:1;
+}
+.home-auth-help{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.text-button{
+  border:0;
+  padding:0;
+  background:transparent;
+  color:#315f8c;
+  font:inherit;
+  font-size:.8rem;
+  font-weight:850;
+  cursor:pointer;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+.text-button:hover,
+.text-button:focus-visible{
+  color:#17345f;
+}
