@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.14-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.15-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -220,26 +220,59 @@
     }
     return "";
   }
-  function normalizeLibraryTitleKey(value) {
+  function compactLibraryTitleText(value) {
     return normalizeText(value)
-      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[’']/g, "")
       .replace(/&/g, " and ")
+      .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
-      .trim();
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+  function stripLeadingArticleFromKey(key = "") {
+    return String(key || "").replace(/^(the|a|an)\s+/, "").trim();
+  }
+  function stripLibrarySeasonSuffix(value = "") {
+    const original = normalizeText(value);
+    const match = original.match(/(?:^|[\s:;,.\-–—(])(?:s|season)\.?\s*(\d{1,2}|x)\)?\s*$/i);
+    if (!match) return { title: original, season: "" };
+    const title = original.slice(0, match.index).replace(/[\s:;,.\-–—(]+$/g, "").trim();
+    return { title: title || original, season: String(match[1] || "").toLowerCase() };
+  }
+  function normalizeLibraryTitleKey(value) {
+    return stripLeadingArticleFromKey(compactLibraryTitleText(stripLibrarySeasonSuffix(value).title));
+  }
+  function titleWords(key = "") {
+    return String(key || "").split(/\s+/).filter(Boolean);
   }
   function libraryRecordFromRow(row = {}, source = "") {
     const title = firstField(row, ["title", "program_title", "name"]);
     const description = firstField(row, ["notes", "program_notes", "description", "summary"]);
-    const key = normalizeLibraryTitleKey(title);
-    if (!title || !description || !key) return null;
-    return { source, title, key, description };
+    const rawKey = compactLibraryTitleText(title);
+    const stripped = stripLibrarySeasonSuffix(title);
+    const baseKeyWithArticle = compactLibraryTitleText(stripped.title);
+    const baseKey = stripLeadingArticleFromKey(baseKeyWithArticle);
+    if (!title || !description || !baseKey) return null;
+    return {
+      source,
+      title,
+      key: stripLeadingArticleFromKey(rawKey),
+      rawKey,
+      baseKey,
+      baseKeyWithArticle,
+      words: titleWords(baseKey),
+      season: stripped.season,
+      description
+    };
   }
   function uniqueLibraryMatches(matches = []) {
     const seen = new Set();
     const out = [];
     matches.forEach((item) => {
       if (!item?.description) return;
-      const key = `${item.source}|${item.key}|${normalizeLibraryTitleKey(item.description)}`;
+      const key = `${item.source}|${item.title}|${normalizeLibraryTitleKey(item.description)}`;
       if (seen.has(key)) return;
       seen.add(key);
       out.push(item);
@@ -277,31 +310,123 @@
     const records = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
     const exact = new Map();
     records.forEach((record) => {
-      if (!exact.has(record.key)) exact.set(record.key, []);
-      exact.get(record.key).push(record);
+      [record.key, record.rawKey, record.baseKey, record.baseKeyWithArticle]
+        .map((key) => stripLeadingArticleFromKey(compactLibraryTitleText(key)))
+        .filter(Boolean)
+        .forEach((key) => {
+          if (!exact.has(key)) exact.set(key, []);
+          exact.get(key).push(record);
+        });
     });
     return { records, exact, cache: new Map() };
   }
-  function descriptionForScheduleTitle(rawTitle = "", index = null) {
-    if (!index?.records?.length) return "";
-    const key = normalizeLibraryTitleKey(rawTitle);
-    if (!key || key.length < 4) return "";
-    if (index.cache.has(key)) return index.cache.get(key);
+  function seasonFromScheduleEntry(entry = {}, rawTitle = "") {
+    const candidates = [
+      rawTitle,
+      entry.title,
+      entry.episode,
+      entry.episodeTitle,
+      entry.season,
+      entry.seasonNumber,
+      entry.seasonNum,
+      entry.seasonLabel,
+      entry.nola,
+      entry.nolaCode,
+      entry.programCode
+    ];
+    for (const value of candidates) {
+      const text = normalizeText(value);
+      if (!text) continue;
+      let match = text.match(/\b(?:s|season)\.?\s*(\d{1,2})\b/i);
+      if (match) return String(Number(match[1]));
+      match = text.match(/^#?(\d)(\d{2})(?:\D|$)/);
+      if (match && match[1] !== "0") return String(Number(match[1]));
+    }
+    return "";
+  }
+  function tokenPrefixMatch(queryWords = [], recordWords = []) {
+    if (!queryWords.length || !recordWords.length) return false;
+    if (queryWords.length > recordWords.length) return false;
+    for (let index = 0; index < queryWords.length; index += 1) {
+      const queryWord = queryWords[index];
+      const recordWord = recordWords[index];
+      if (!queryWord || !recordWord) return false;
+      if (index === queryWords.length - 1 && queryWord.length >= 3) {
+        if (!recordWord.startsWith(queryWord)) return false;
+      } else if (queryWord !== recordWord) {
+        return false;
+      }
+    }
+    return true;
+  }
+  function scoreLibraryTitleCandidate(record, query, scheduleSeason = "") {
+    if (!record || !query?.key) return 0;
+    const key = query.key;
+    const keyWithArticle = query.keyWithArticle;
+    const qWords = query.words;
+    let score = 0;
 
-    const exactMatches = uniqueLibraryMatches(index.exact.get(key) || []);
-    if (exactMatches.length === 1) {
-      index.cache.set(key, exactMatches[0].description);
-      return exactMatches[0].description;
+    if (record.key === key || record.rawKey === key || record.baseKey === key || record.baseKeyWithArticle === keyWithArticle) score = Math.max(score, 1200);
+    if (record.baseKey === key || record.baseKeyWithArticle === keyWithArticle) score = Math.max(score, 1150);
+    if (record.key === key || record.rawKey === keyWithArticle) score = Math.max(score, 1120);
+
+    if (key.length >= 8) {
+      if (record.baseKey.startsWith(key) || record.key.startsWith(key)) score = Math.max(score, 930);
+      if (key.startsWith(record.baseKey) && record.baseKey.length >= 8) score = Math.max(score, 880);
+      if (record.baseKey.includes(` ${key} `) || record.key.includes(` ${key} `)) score = Math.max(score, 760);
     }
 
-    const partialMatches = uniqueLibraryMatches(index.records.filter((record) => {
-      if (record.key === key) return false;
-      if (key.length < 8) return false;
-      return record.key.startsWith(key) || record.key.includes(` ${key} `) || key.startsWith(record.key);
-    }));
-    const description = partialMatches.length === 1 ? partialMatches[0].description : "";
-    index.cache.set(key, description);
-    return description;
+    if (qWords.length >= 2 && tokenPrefixMatch(qWords, record.words)) {
+      const completeness = Math.min(120, Math.round((qWords.join(" ").length / Math.max(1, record.baseKey.length)) * 120));
+      score = Math.max(score, 940 + completeness);
+    }
+
+    if (score <= 0) return 0;
+    if (scheduleSeason && record.season && record.season !== "x") {
+      score += record.season === scheduleSeason ? 160 : -180;
+    } else if (record.season && record.season !== "x" && record.baseKey === key) {
+      score += 35;
+    }
+    if (record.source === "Program Library") score += 12;
+    return score;
+  }
+  function makeScheduleTitleQuery(rawTitle = "") {
+    const stripped = stripLibrarySeasonSuffix(rawTitle);
+    const keyWithArticle = compactLibraryTitleText(stripped.title);
+    const key = stripLeadingArticleFromKey(keyWithArticle);
+    return { key, keyWithArticle, words: titleWords(key), season: stripped.season };
+  }
+  function bestLibraryMatchForScheduleTitle(rawTitle = "", entry = {}, index = null) {
+    if (!index?.records?.length) return null;
+    const query = makeScheduleTitleQuery(rawTitle);
+    if (!query.key || query.key.length < 4) return null;
+    const scheduleSeason = seasonFromScheduleEntry(entry, rawTitle) || query.season;
+    const cacheKey = `${query.key}|${scheduleSeason}|${normalizeText(entry?.episode)}`;
+    if (index.cache.has(cacheKey)) return index.cache.get(cacheKey);
+
+    const candidates = uniqueLibraryMatches(index.records
+      .map((record) => ({ ...record, _score: scoreLibraryTitleCandidate(record, query, scheduleSeason) }))
+      .filter((record) => record._score >= 900)
+      .sort((a, b) => b._score - a._score || a.title.localeCompare(b.title)));
+
+    let result = null;
+    if (candidates.length) {
+      const topScore = candidates[0]._score;
+      const close = candidates.filter((candidate) => candidate._score >= topScore - 25);
+      const closeUnique = uniqueLibraryMatches(close);
+      if (closeUnique.length === 1) {
+        result = candidates[0];
+      } else if (scheduleSeason) {
+        const seasonMatches = closeUnique.filter((candidate) => candidate.season === scheduleSeason || candidate.season === "x");
+        if (seasonMatches.length === 1) result = seasonMatches[0];
+      } else {
+        const exactBase = closeUnique.filter((candidate) => candidate.baseKey === query.key);
+        if (exactBase.length === 1) result = exactBase[0];
+      }
+    }
+
+    index.cache.set(cacheKey, result);
+    return result;
   }
 
   function normalizeSchedule(row = {}) {
@@ -582,14 +707,16 @@
   function decorateScheduleEntry(entry, marksMap, timeLabel, descriptionIndex = null) {
     const mark = findMarkForEntry(entry, marksMap);
     const displayTitle = displayTitleForEntry(entry, mark);
-    const description = descriptionForScheduleTitle(displayTitle, descriptionIndex) || descriptionForScheduleTitle(entry.title, descriptionIndex);
+    const libraryMatch = bestLibraryMatchForScheduleTitle(displayTitle, entry, descriptionIndex) || bestLibraryMatchForScheduleTitle(entry.title, entry, descriptionIndex);
     return {
       ...entry,
       title: displayTitle,
       _timeLabel: timeLabel,
       _meta: entryEpisodeText(entry),
       _tags: featuredTagLabelsForEntry(entry, mark),
-      _description: description
+      _description: libraryMatch?.description || "",
+      _libraryTitle: libraryMatch?.title || "",
+      _librarySource: libraryMatch?.source || ""
     };
   }
   async function getMonthlySharedMarks(cfg, monthKey) {
@@ -627,7 +754,8 @@
   }
   function renderScheduleList(entries, className = "schedule-list") {
     return `<ul class="${className}">${entries.map((entry) => {
-      const descriptionAttr = entry._description ? ` title="${escapeHtml(entry._description)}" aria-label="${escapeHtml(`${entry.title}. ${entry._description}`)}"` : "";
+      const tooltip = entry._description ? [entry._libraryTitle || "", entry._description].filter(Boolean).join("\n\n") : "";
+      const descriptionAttr = tooltip ? ` title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${entry.title}. ${tooltip}`)}"` : "";
       const titleClass = `schedule-program-title${entry._description ? " has-library-description" : ""}`;
       const tagsHtml = entry._tags?.length ? `<span class="schedule-tag-row-inline">${entry._tags.map((tag) => `<span class="schedule-feature-tag">${escapeHtml(tag)}</span>`).join("")}</span>` : "";
       const metaHtml = entry._meta ? `<span class="schedule-program-meta-text">${escapeHtml(entry._meta)}</span>` : "";

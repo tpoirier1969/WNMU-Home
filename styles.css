@@ -284,3 +284,8 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     grid-template-columns:1fr;
   }
 }
+
+/* v1.0.15 logo-blue Home heading */
+.hero-copy h1{
+  color:#315f8c;
+}
