@@ -19,6 +19,7 @@ What it does:
 - Creates a Supabase Auth user if missing, or resets the password if the user already exists.
 - Marks the Auth email confirmed.
 - Optionally updates/deactivates module role rows in `wnmu_app_user_roles`.
+- Lists existing Supabase Auth users and active module permissions for the Manage Users chart.
 - Sends no email.
 
 Allowed login IDs:

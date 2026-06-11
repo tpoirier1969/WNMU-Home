@@ -83,18 +83,24 @@ async function assertHomeAdmin(serviceClient: ReturnType<typeof createClient>, c
   if (!data?.length) throw new Error("Only Home admins can create or reset users.");
 }
 
-async function findUserByEmail(serviceClient: ReturnType<typeof createClient>, email: string) {
+async function listAllAuthUsers(serviceClient: ReturnType<typeof createClient>) {
   let page = 1;
   const perPage = 1000;
+  const users: Array<any> = [];
   while (page <= 20) {
     const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
-    const found = data?.users?.find((user) => normalizeEmail(user.email) === email);
-    if (found) return found;
-    if (!data?.users?.length || data.users.length < perPage) return null;
+    const batch = data?.users || [];
+    users.push(...batch);
+    if (!batch.length || batch.length < perPage) return users;
     page += 1;
   }
-  throw new Error("Could not find the user by email because the Auth user list is larger than this function searches.");
+  throw new Error("The Auth user list is larger than this function currently searches.");
+}
+
+async function findUserByEmail(serviceClient: ReturnType<typeof createClient>, email: string) {
+  const users = await listAllAuthUsers(serviceClient);
+  return users.find((user) => normalizeEmail(user.email) === email) || null;
 }
 
 async function createOrResetUser(serviceClient: ReturnType<typeof createClient>, payload: Record<string, unknown>) {
@@ -168,6 +174,67 @@ async function createOrResetUser(serviceClient: ReturnType<typeof createClient>,
   return { email, userId, authAction, rolesUpdated };
 }
 
+async function listUsersAndRoles(serviceClient: ReturnType<typeof createClient>) {
+  const users = new Map<string, Record<string, unknown>>();
+  const ensureUser = (email: string) => {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return null;
+    if (!users.has(normalized)) {
+      users.set(normalized, {
+        email: normalized,
+        displayName: "",
+        hasAuthUser: false,
+        emailConfirmed: false,
+        createdAt: null,
+        lastSignInAt: null,
+        roles: {}
+      });
+    }
+    return users.get(normalized) as Record<string, unknown>;
+  };
+
+  const authUsers = await listAllAuthUsers(serviceClient);
+  for (const authUser of authUsers) {
+    const email = normalizeEmail(authUser.email);
+    if (!email) continue;
+    const row = ensureUser(email);
+    if (!row) continue;
+    const metadata = authUser.user_metadata || {};
+    row.hasAuthUser = true;
+    row.emailConfirmed = Boolean(authUser.email_confirmed_at || authUser.confirmed_at);
+    row.createdAt = authUser.created_at || null;
+    row.lastSignInAt = authUser.last_sign_in_at || null;
+    row.displayName = normalizeDisplayName(metadata.display_name || metadata.full_name || row.displayName || "");
+  }
+
+  const { data: roleRows, error } = await serviceClient
+    .from(ROLE_TABLE_NAME)
+    .select("email,app_key,role,is_active,display_name")
+    .order("email", { ascending: true });
+  if (error) throw error;
+
+  for (const roleRow of roleRows || []) {
+    const email = normalizeEmail(roleRow?.email);
+    const appKey = String(roleRow?.app_key || "");
+    if (!email || !VALID_APP_KEYS.has(appKey)) continue;
+    const row = ensureUser(email);
+    if (!row) continue;
+    if (!row.displayName && roleRow?.display_name) row.displayName = normalizeDisplayName(roleRow.display_name);
+    const role = normalizeRole(roleRow?.role);
+    if (role && roleRow?.is_active !== false) {
+      const roles = row.roles as Record<string, Role>;
+      roles[appKey] = role;
+    }
+  }
+
+  const sortedUsers = Array.from(users.values()).sort((a, b) => {
+    const aName = normalizeDisplayName(a.displayName || a.email);
+    const bName = normalizeDisplayName(b.displayName || b.email);
+    return aName.localeCompare(bName, "en", { sensitivity: "base" });
+  });
+  return { users: sortedUsers };
+}
+
 serve(async (req) => {
   const headers = corsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers });
@@ -185,10 +252,15 @@ serve(async (req) => {
     await assertHomeAdmin(serviceClient, normalizeEmail(caller.email));
     const payload = await req.json().catch(() => ({}));
     const action = String(payload.action || "");
-    if (action !== "createOrResetUser") throw new Error("Unsupported action.");
-
-    const result = await createOrResetUser(serviceClient, payload);
-    return jsonResponse({ ok: true, ...result }, 200, headers);
+    if (action === "listUsersAndRoles") {
+      const result = await listUsersAndRoles(serviceClient);
+      return jsonResponse({ ok: true, ...result }, 200, headers);
+    }
+    if (action === "createOrResetUser") {
+      const result = await createOrResetUser(serviceClient, payload);
+      return jsonResponse({ ok: true, ...result }, 200, headers);
+    }
+    throw new Error("Unsupported action.");
   } catch (error) {
     console.error("wnmu-admin-user error", error);
     return jsonResponse({ error: error instanceof Error ? error.message : "User management failed." }, 400, headers);

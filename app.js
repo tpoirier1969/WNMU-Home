@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.21-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.22-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -39,6 +39,10 @@
     adminUserMessage: "",
     adminUserError: "",
     rolesError: "",
+    adminUsersLoading: false,
+    adminUsersLoaded: false,
+    adminUsersError: "",
+    adminUsers: [],
     session: null,
     user: null,
     roles: new Map(),
@@ -50,6 +54,14 @@
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
     { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
     { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
+  ];
+
+  const adminUserColumns = [
+    { appKey: HOME_APP_KEY, label: "Home" },
+    { appKey: "programming_library", label: "Programming" },
+    { appKey: "pledge_library", label: "Pledge" },
+    { appKey: "monthly_schedules", label: "Schedules" },
+    { appKey: "monthly_sales", label: "Sales" }
   ];
 
   function escapeHtml(value) {
@@ -302,6 +314,7 @@
       homeState.adminUserError = "";
       homeState.adminUserMessage = "";
       renderAdminUserPanel();
+      void refreshAdminUsersTable();
       window.setTimeout(() => document.getElementById("homeAdminUserEmail")?.focus(), 0);
     });
     renderAdminUserPanel();
@@ -309,6 +322,89 @@
   function setRoleFieldsVisible() {
     const checked = Boolean(document.getElementById("homeAdminUpdateRoles")?.checked);
     document.getElementById("homeAdminRoleFields")?.classList.toggle("hidden", !checked);
+  }
+  function adminUserRoleTag(role) {
+    const normalized = normalizeRole(role);
+    return `<span class="access-role access-role--${escapeHtml(normalized || "none")}">${escapeHtml(roleLabel(normalized))}</span>`;
+  }
+  function renderAdminUsersTable() {
+    const box = document.getElementById("homeAdminUsersTable");
+    const refreshButton = document.getElementById("homeRefreshAdminUsersButton");
+    if (!box) return;
+    if (refreshButton) refreshButton.disabled = homeState.adminUsersLoading;
+    if (!isHomeAdmin()) {
+      box.innerHTML = "";
+      return;
+    }
+    if (homeState.adminUsersLoading) {
+      box.innerHTML = `<div class="admin-users-empty">Loading users and permissions…</div>`;
+      return;
+    }
+    if (homeState.adminUsersError) {
+      box.innerHTML = `<div class="admin-users-empty warn">${escapeHtml(homeState.adminUsersError)}</div>`;
+      return;
+    }
+    if (!homeState.adminUsersLoaded) {
+      box.innerHTML = `<div class="admin-users-empty">Open this panel or refresh to load the current permission chart.</div>`;
+      return;
+    }
+    if (!homeState.adminUsers.length) {
+      box.innerHTML = `<div class="admin-users-empty">No users or role rows found yet.</div>`;
+      return;
+    }
+    const headerCells = adminUserColumns.map((col) => `<th scope="col">${escapeHtml(col.label)}</th>`).join("");
+    const rows = homeState.adminUsers.map((user) => {
+      const display = normalizeText(user.displayName || "");
+      const email = normalizeEmail(user.email || "");
+      const roleCells = adminUserColumns.map((col) => `<td>${adminUserRoleTag(user.roles?.[col.appKey] || "")}</td>`).join("");
+      const status = user.hasAuthUser ? "Login exists" : "Roles only";
+      const detail = user.hasAuthUser ? (user.emailConfirmed ? "Confirmed" : "Unconfirmed") : "No Supabase Auth login yet";
+      return `
+        <tr>
+          <th scope="row">
+            <span class="admin-users-name">${escapeHtml(display || email || "Unnamed user")}</span>
+            <span class="admin-users-email">${escapeHtml(email)}</span>
+          </th>
+          <td><span class="admin-users-status">${escapeHtml(status)}</span><span class="admin-users-status-detail">${escapeHtml(detail)}</span></td>
+          ${roleCells}
+        </tr>`;
+    }).join("");
+    box.innerHTML = `
+      <div class="admin-users-table-wrap">
+        <table class="admin-users-table">
+          <thead>
+            <tr>
+              <th scope="col">User</th>
+              <th scope="col">Login</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  async function refreshAdminUsersTable() {
+    if (!isHomeAdmin()) return;
+    homeState.adminUsersLoading = true;
+    homeState.adminUsersError = "";
+    renderAdminUsersTable();
+    try {
+      const client = await ensureHomeAuthClient();
+      const { data, error } = await client.functions.invoke("wnmu-admin-user", {
+        body: { action: "listUsersAndRoles" }
+      });
+      if (error) throw error;
+      homeState.adminUsers = Array.isArray(data?.users) ? data.users : [];
+      homeState.adminUsersLoaded = true;
+      homeState.adminUsersError = "";
+    } catch (error) {
+      homeState.adminUsersError = await friendlyFunctionError(error);
+      homeState.adminUsersLoaded = true;
+      homeState.adminUsers = [];
+    } finally {
+      homeState.adminUsersLoading = false;
+      renderAdminUsersTable();
+    }
   }
   function renderAdminUserPanel() {
     const panel = document.getElementById("homeAdminUserPanel");
@@ -322,6 +418,7 @@
       message.classList.toggle("warn", Boolean(homeState.adminUserError));
     }
     setRoleFieldsVisible();
+    renderAdminUsersTable();
   }
   function generateTempPassword(length = 16) {
     const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
@@ -510,6 +607,10 @@
       homeState.adminUserPanelOpen = false;
       homeState.adminUserMessage = "";
       homeState.adminUserError = "";
+      homeState.adminUsersLoading = false;
+      homeState.adminUsersLoaded = false;
+      homeState.adminUsersError = "";
+      homeState.adminUsers = [];
     }
     renderHomeShell();
     refreshPrivateHomeSections();
@@ -528,6 +629,7 @@
     const updateForm = document.getElementById("homePasswordUpdateForm");
     const adminUserForm = document.getElementById("homeAdminUserForm");
     const adminUserCloseButton = document.getElementById("homeAdminUserCloseButton");
+    const refreshAdminUsersButton = document.getElementById("homeRefreshAdminUsersButton");
     const generateTempPasswordButton = document.getElementById("homeGenerateTempPasswordButton");
     const updateRolesCheckbox = document.getElementById("homeAdminUpdateRoles");
 
@@ -661,6 +763,9 @@
       homeState.adminUserMessage = "";
       renderAdminUserPanel();
     });
+    if (refreshAdminUsersButton) refreshAdminUsersButton.addEventListener("click", () => {
+      void refreshAdminUsersTable();
+    });
     if (generateTempPasswordButton) generateTempPasswordButton.addEventListener("click", () => {
       const field = document.getElementById("homeAdminTempPassword");
       if (field) {
@@ -717,6 +822,7 @@
         homeState.adminUserMessage = `${data?.email || loginId} is ready. Give them the temporary password directly.${data?.rolesUpdated ? " Module permissions were updated." : " Existing module permissions were left unchanged."}`;
         homeState.adminUserError = "";
         renderAdminUserPanel();
+        void refreshAdminUsersTable();
       } catch (error) {
         homeState.adminUserError = await friendlyFunctionError(error);
         homeState.adminUserMessage = "";
