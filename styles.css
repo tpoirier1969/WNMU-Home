@@ -370,3 +370,57 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 .text-button:focus-visible{
   color:#17345f;
 }
+
+/* v1.0.20 Home auth account/reset cleanup */
+.home-auth-drawer{
+  --accent:#17345f;
+}
+.home-auth-submit,
+.home-auth-submit:hover,
+.home-auth-submit:focus-visible{
+  background:#17345f;
+  color:#fff;
+}
+.home-auth-note{
+  margin:0;
+  color:#5a6878;
+  font-size:.82rem;
+  font-weight:700;
+  line-height:1.35;
+}
+.home-auth-panel{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--border);
+}
+.home-auth-panel-head{
+  display:grid;
+  gap:3px;
+  margin-bottom:8px;
+}
+.home-auth-panel-head strong{
+  color:#17345f;
+  font-size:.92rem;
+}
+.home-auth-panel-head span{
+  color:#5a6878;
+  font-size:.82rem;
+  font-weight:700;
+  line-height:1.35;
+}
+.home-auth-fields--two{
+  grid-template-columns:minmax(220px,1fr) auto;
+}
+.home-auth-fields--account{
+  grid-template-columns:minmax(190px,1fr) minmax(150px,1fr) minmax(150px,1fr) auto;
+}
+.home-auth-panel-close{
+  justify-self:start;
+  margin-top:2px;
+}
+@media(max-width:900px){
+  .home-auth-fields--two,
+  .home-auth-fields--account{
+    grid-template-columns:1fr;
+  }
+}

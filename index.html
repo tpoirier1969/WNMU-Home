@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WNMU Home</title>
   <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
-  <link rel="stylesheet" href="styles.css?v=v1.0.19-r2026-06-11">
+  <link rel="stylesheet" href="styles.css?v=v1.0.20-r2026-06-11">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,7 +28,7 @@
         <button type="button" class="login-placeholder-button hidden" id="homeLogoutButton">Log out</button>
         <div class="version-pill" aria-label="Portal version">
           <span>Portal</span>
-          <strong>v1.0.19-r2026-06-11</strong>
+          <strong>v1.0.20-r2026-06-11</strong>
         </div>
       </div>
     </header>
@@ -37,6 +37,7 @@
       <form class="home-auth-form" id="homeLoginForm">
         <div class="home-auth-primary">
           <button type="button" class="button home-auth-submit home-github-submit" id="homeGithubLoginButton">Sign in with GitHub</button>
+          <p class="home-auth-note">Password sign-in uses a WNMU Home account, not GitHub credentials.</p>
           <div class="home-auth-divider"><span>or</span></div>
         </div>
         <div class="home-auth-fields">
@@ -48,14 +49,70 @@
             <span>Password</span>
             <input type="password" id="homeLoginPassword" autocomplete="current-password" required>
           </label>
-          <button type="submit" class="button home-auth-submit">Sign in with password</button>
+          <button type="submit" class="button home-auth-submit">Sign in</button>
         </div>
         <div class="home-auth-help">
-          <button type="button" class="text-button" id="homeForgotLoginButton">Forgot login?</button>
-          <button type="button" class="text-button" id="homeRequestAccountButton">Request account</button>
+          <button type="button" class="text-button" id="homeForgotLoginButton">Forgot password?</button>
+          <button type="button" class="text-button" id="homeRequestAccountButton">Create account</button>
         </div>
-        <div class="home-auth-message" id="homeAuthMessage"></div>
       </form>
+
+      <form class="home-auth-form home-auth-panel hidden" id="homePasswordResetForm" aria-label="Reset password">
+        <div class="home-auth-panel-head">
+          <strong>Reset password</strong>
+          <span>Enter your NMU email and Supabase will email a reset link.</span>
+        </div>
+        <div class="home-auth-fields home-auth-fields--two">
+          <label>
+            <span>Email</span>
+            <input type="email" id="homeResetEmail" autocomplete="email" spellcheck="false" required>
+          </label>
+          <button type="submit" class="button home-auth-submit">Send reset link</button>
+        </div>
+        <button type="button" class="text-button home-auth-panel-close" data-close-auth-panel>Back to sign in</button>
+      </form>
+
+      <form class="home-auth-form home-auth-panel hidden" id="homeCreateAccountForm" aria-label="Create account">
+        <div class="home-auth-panel-head">
+          <strong>Create account</strong>
+          <span>Use your NMU email and choose a password. After confirming the email link, speak with Tod about permissions for the different modules.</span>
+        </div>
+        <div class="home-auth-fields home-auth-fields--account">
+          <label>
+            <span>Email</span>
+            <input type="email" id="homeCreateEmail" autocomplete="email" spellcheck="false" required>
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" id="homeCreatePassword" autocomplete="new-password" required minlength="8">
+          </label>
+          <label>
+            <span>Confirm password</span>
+            <input type="password" id="homeCreatePasswordConfirm" autocomplete="new-password" required minlength="8">
+          </label>
+          <button type="submit" class="button home-auth-submit">Create account</button>
+        </div>
+        <button type="button" class="text-button home-auth-panel-close" data-close-auth-panel>Back to sign in</button>
+      </form>
+
+      <form class="home-auth-form home-auth-panel hidden" id="homePasswordUpdateForm" aria-label="Set new password">
+        <div class="home-auth-panel-head">
+          <strong>Set new password</strong>
+          <span>Enter a new password for this account.</span>
+        </div>
+        <div class="home-auth-fields home-auth-fields--two">
+          <label>
+            <span>New password</span>
+            <input type="password" id="homeNewPassword" autocomplete="new-password" required minlength="8">
+          </label>
+          <label>
+            <span>Confirm password</span>
+            <input type="password" id="homeNewPasswordConfirm" autocomplete="new-password" required minlength="8">
+          </label>
+          <button type="submit" class="button home-auth-submit">Save password</button>
+        </div>
+      </form>
+      <div class="home-auth-message" id="homeAuthMessage"></div>
     </section>
 
     <section class="app-grid" data-app-grid aria-label="WNMU apps">
@@ -69,6 +126,6 @@
     <section class="schedule-panel hidden" id="homeScheduleSummary" aria-live="polite" aria-label="WNMU 13.1 schedule summary"></section>
   </main>
 
-  <script src="app.js?v=v1.0.19-r2026-06-11"></script>
+  <script src="app.js?v=v1.0.20-r2026-06-11"></script>
 </body>
 </html>

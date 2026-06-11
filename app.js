@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.19-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.20-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -31,6 +31,8 @@
     authReady: false,
     authBound: false,
     authDrawerOpen: false,
+    activeAuthPanel: "sign-in",
+    passwordRecovery: false,
     authError: "",
     authMessage: "",
     rolesError: "",
@@ -285,7 +287,7 @@
     if (chip) chip.textContent = signedIn ? displayUserName() : (homeState.authError ? "Login unavailable" : "Public view");
     if (loginButton) loginButton.classList.toggle("hidden", signedIn);
     if (logoutButton) logoutButton.classList.toggle("hidden", !signedIn);
-    if (drawer) drawer.classList.toggle("hidden", signedIn || !homeState.authDrawerOpen);
+    if (drawer) drawer.classList.toggle("hidden", (!homeState.authDrawerOpen) || (signedIn && !homeState.passwordRecovery));
     if (message) {
       message.textContent = homeState.authMessage || homeState.authError || "";
       message.classList.toggle("warn", Boolean(homeState.authError));
@@ -308,6 +310,33 @@
       return;
     }
     void loadPledgeDriveSummary();
+  }
+
+  function authRedirectUrl() {
+    const url = new URL(window.location.href.split("#")[0]);
+    url.searchParams.delete("error");
+    url.searchParams.delete("error_code");
+    url.searchParams.delete("error_description");
+    return url.toString();
+  }
+  function setAuthPanel(panelName = "sign-in") {
+    homeState.activeAuthPanel = panelName;
+    const loginForm = document.getElementById("homeLoginForm");
+    if (loginForm) loginForm.classList.toggle("hidden", panelName !== "sign-in");
+    const panels = {
+      "reset": document.getElementById("homePasswordResetForm"),
+      "create": document.getElementById("homeCreateAccountForm"),
+      "update": document.getElementById("homePasswordUpdateForm")
+    };
+    Object.entries(panels).forEach(([key, el]) => {
+      if (el) el.classList.toggle("hidden", key !== panelName);
+    });
+  }
+  function copyLoginEmailToField(targetId) {
+    const source = document.getElementById("homeLoginEmail");
+    const target = document.getElementById(targetId);
+    const value = normalizeText(source?.value || "");
+    if (target && value && value.includes("@")) target.value = value;
   }
 
   function loadScript(src) {
@@ -417,10 +446,25 @@
     const forgotButton = document.getElementById("homeForgotLoginButton");
     const requestButton = document.getElementById("homeRequestAccountButton");
     const form = document.getElementById("homeLoginForm");
+    const resetForm = document.getElementById("homePasswordResetForm");
+    const createForm = document.getElementById("homeCreateAccountForm");
+    const updateForm = document.getElementById("homePasswordUpdateForm");
+
+    document.querySelectorAll("[data-close-auth-panel]").forEach((button) => {
+      button.addEventListener("click", () => {
+        homeState.authError = "";
+        homeState.authMessage = "";
+        setAuthPanel("sign-in");
+        renderAuthControls();
+      });
+    });
+
     if (loginButton) loginButton.addEventListener("click", () => {
       homeState.authDrawerOpen = !homeState.authDrawerOpen;
+      homeState.passwordRecovery = false;
       homeState.authMessage = "";
       homeState.authError = "";
+      setAuthPanel("sign-in");
       renderAuthControls();
       if (homeState.authDrawerOpen) window.setTimeout(() => document.getElementById("homeLoginEmail")?.focus(), 0);
     });
@@ -428,6 +472,9 @@
       try {
         const client = await ensureHomeAuthClient();
         await client.auth.signOut();
+        homeState.passwordRecovery = false;
+        homeState.authDrawerOpen = false;
+        setAuthPanel("sign-in");
         await refreshHomeAuthFromSession(null);
       } catch (error) {
         homeState.authError = error?.message || "Sign out failed.";
@@ -437,27 +484,35 @@
     if (githubButton) githubButton.addEventListener("click", async () => {
       homeState.authMessage = "Opening GitHub sign in…";
       homeState.authError = "";
+      setAuthPanel("sign-in");
       renderAuthControls();
       try {
         const client = await ensureHomeAuthClient();
-        const redirectTo = window.location.href.split("#")[0];
-        const { error } = await client.auth.signInWithOAuth({ provider: "github", options: { redirectTo } });
+        const { error } = await client.auth.signInWithOAuth({ provider: "github", options: { redirectTo: authRedirectUrl() } });
         if (error) throw error;
       } catch (error) {
-        homeState.authError = error?.message || "GitHub sign in failed.";
+        homeState.authError = error?.message || "GitHub sign in failed. Password fields below do not accept GitHub credentials.";
         homeState.authMessage = "";
         renderAuthControls();
       }
     });
     if (forgotButton) forgotButton.addEventListener("click", () => {
+      homeState.authDrawerOpen = true;
       homeState.authError = "";
-      homeState.authMessage = "If you use GitHub/NMU, reset your password there. For an internal username such as student, ask a WNMU admin to reset the password.";
+      homeState.authMessage = "";
+      copyLoginEmailToField("homeResetEmail");
+      setAuthPanel("reset");
       renderAuthControls();
+      window.setTimeout(() => document.getElementById("homeResetEmail")?.focus(), 0);
     });
     if (requestButton) requestButton.addEventListener("click", () => {
+      homeState.authDrawerOpen = true;
       homeState.authError = "";
-      homeState.authMessage = "Ask Tod or a WNMU admin to create the account and assign module access. Self-service account creation is not enabled yet.";
+      homeState.authMessage = "";
+      copyLoginEmailToField("homeCreateEmail");
+      setAuthPanel("create");
       renderAuthControls();
+      window.setTimeout(() => document.getElementById("homeCreateEmail")?.focus(), 0);
     });
     if (form) form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -468,16 +523,109 @@
       if (!loginId || !password) return;
       homeState.authMessage = "Signing in…";
       homeState.authError = "";
+      setAuthPanel("sign-in");
       renderAuthControls();
       try {
         const client = await ensureHomeAuthClient();
         const { data, error } = await client.auth.signInWithPassword({ email: loginId, password });
         if (error) throw error;
         homeState.authDrawerOpen = false;
+        homeState.passwordRecovery = false;
         if (passwordInput) passwordInput.value = "";
         await refreshHomeAuthFromSession(data?.session || null);
       } catch (error) {
-        homeState.authError = error?.message || "Sign in failed.";
+        homeState.authError = error?.message || "Sign in failed. This password form uses a WNMU Home account, not GitHub credentials.";
+        homeState.authMessage = "";
+        renderAuthControls();
+      }
+    });
+    if (resetForm) resetForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(document.getElementById("homeResetEmail")?.value || "");
+      if (!email || !email.includes("@")) {
+        homeState.authError = "Enter the NMU email address for the account.";
+        homeState.authMessage = "";
+        renderAuthControls();
+        return;
+      }
+      homeState.authMessage = "Sending password reset email…";
+      homeState.authError = "";
+      renderAuthControls();
+      try {
+        const client = await ensureHomeAuthClient();
+        const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl() });
+        if (error) throw error;
+        homeState.authMessage = "If that account exists, Supabase will email a password reset link.";
+        homeState.authError = "";
+        setAuthPanel("sign-in");
+        renderAuthControls();
+      } catch (error) {
+        homeState.authError = error?.message || "Password reset email failed.";
+        homeState.authMessage = "";
+        renderAuthControls();
+      }
+    });
+    if (createForm) createForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(document.getElementById("homeCreateEmail")?.value || "");
+      const password = String(document.getElementById("homeCreatePassword")?.value || "");
+      const confirm = String(document.getElementById("homeCreatePasswordConfirm")?.value || "");
+      if (!email || !email.includes("@")) {
+        homeState.authError = "Enter a real NMU email address.";
+        homeState.authMessage = "";
+        renderAuthControls();
+        return;
+      }
+      if (password.length < 8 || password !== confirm) {
+        homeState.authError = password.length < 8 ? "Use at least 8 characters for the password." : "The password fields do not match.";
+        homeState.authMessage = "";
+        renderAuthControls();
+        return;
+      }
+      homeState.authMessage = "Creating account…";
+      homeState.authError = "";
+      renderAuthControls();
+      try {
+        const client = await ensureHomeAuthClient();
+        const { error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: authRedirectUrl() } });
+        if (error) throw error;
+        homeState.authMessage = "Supabase will email a confirmation link. After confirming, speak with Tod about module permissions.";
+        homeState.authError = "";
+        setAuthPanel("sign-in");
+        createForm.reset();
+        renderAuthControls();
+      } catch (error) {
+        homeState.authError = error?.message || "Account creation failed.";
+        homeState.authMessage = "";
+        renderAuthControls();
+      }
+    });
+    if (updateForm) updateForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = String(document.getElementById("homeNewPassword")?.value || "");
+      const confirm = String(document.getElementById("homeNewPasswordConfirm")?.value || "");
+      if (password.length < 8 || password !== confirm) {
+        homeState.authError = password.length < 8 ? "Use at least 8 characters for the new password." : "The password fields do not match.";
+        homeState.authMessage = "";
+        renderAuthControls();
+        return;
+      }
+      homeState.authMessage = "Saving new password…";
+      homeState.authError = "";
+      renderAuthControls();
+      try {
+        const client = await ensureHomeAuthClient();
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw error;
+        homeState.passwordRecovery = false;
+        homeState.authDrawerOpen = false;
+        homeState.authMessage = "Password updated.";
+        homeState.authError = "";
+        updateForm.reset();
+        setAuthPanel("sign-in");
+        renderAuthControls();
+      } catch (error) {
+        homeState.authError = error?.message || "Password update failed.";
         homeState.authMessage = "";
         renderAuthControls();
       }
@@ -488,10 +636,20 @@
     renderAuthControls();
     try {
       const client = await ensureHomeAuthClient();
+      client.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          homeState.passwordRecovery = true;
+          homeState.authDrawerOpen = true;
+          homeState.authMessage = "Enter a new password for this account.";
+          homeState.authError = "";
+          setAuthPanel("update");
+          renderAuthControls();
+        }
+        void refreshHomeAuthFromSession(session);
+      });
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
       await refreshHomeAuthFromSession(data?.session || null);
-      client.auth.onAuthStateChange((_event, session) => { void refreshHomeAuthFromSession(session); });
       homeState.authReady = true;
     } catch (error) {
       console.warn("WNMU Home sign-in setup failed.", error);
