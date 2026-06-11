@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.10-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.11-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
@@ -289,14 +289,14 @@
         <div class="drive-summary-value">${escapeHtml(item.value)}</div>
       </div>`).join("");
     box.innerHTML = `
-      <div class="drive-summary-head drive-summary-head-priority">
+      <div class="drive-summary-head drive-summary-head-priority drive-summary-head-compact">
         <div class="drive-summary-title-wrap">
           <div class="drive-summary-kicker">Pledge drive snapshot</div>
           <div class="drive-summary-title-line drive-summary-title-line-priority">
             <span class="drive-summary-title">${escapeHtml(driveTitle)}</span>
-            <div class="drive-summary-priority-row">${priorityHtml}</div>
           </div>
         </div>
+        <div class="drive-summary-priority-row drive-summary-priority-row-top">${priorityHtml}</div>
         <div class="drive-summary-date">${escapeHtml(formatDate(schedule.startDate))} – ${escapeHtml(formatDate(schedule.endDate))}</div>
       </div>
       <div class="drive-summary-secondary-grid">${secondaryHtml}</div>`;
@@ -384,17 +384,35 @@
     const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_imported_months?select=${select}&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`);
     return Array.isArray(rows) && rows.length ? rows[0] : null;
   }
-  async function getMonthlyHighlightMarks(cfg, monthKey) {
+  function boxNoteTextFromMark(mark = {}) {
+    const source = mark?.mark_json && typeof mark.mark_json === "object" ? mark.mark_json : mark;
+    const text = normalizeText(source?.rectNote?.text || source?.note || source?.whiteout?.text || "");
+    if (!text || text.startsWith("__WNMU_NOTE__")) return "";
+    return text;
+  }
+  function displayTitleForEntry(entry = {}, mark = {}) {
+    return boxNoteTextFromMark(mark) || entry.title || "";
+  }
+  function decorateScheduleEntry(entry, marksMap, timeLabel) {
+    const mark = marksMap instanceof Map ? (marksMap.get(entry._entryKey) || {}) : {};
+    return {
+      ...entry,
+      title: displayTitleForEntry(entry, mark),
+      _timeLabel: timeLabel,
+      _meta: entryEpisodeText(entry)
+    };
+  }
+  async function getMonthlySharedMarks(cfg, monthKey) {
     try {
       const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_shared_marks?select=entry_key,mark_json&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=2000`);
-      const keys = new Set();
+      const marks = new Map();
       (Array.isArray(rows) ? rows : []).forEach((row) => {
-        if (row?.entry_key && isHighlightMark(row.mark_json || row)) keys.add(row.entry_key);
+        if (row?.entry_key) marks.set(row.entry_key, row.mark_json || {});
       });
-      return keys;
+      return marks;
     } catch (error) {
-      console.warn("WNMU Home monthly highlight marks failed.", error);
-      return new Set();
+      console.warn("WNMU Home monthly shared marks failed.", error);
+      return new Map();
     }
   }
   function renderScheduleList(entries, className = "schedule-list") {
@@ -419,7 +437,6 @@
     if (!payload) { box.classList.add("hidden"); box.innerHTML = ""; return; }
 
     const highlightLabel = `${formatMonthLabel(payload.todayMonthKey)} and ${formatMonthLabel(payload.nextMonthKey)}`;
-    const subline = `${formatDateLong(payload.todayKey)} • Highlights: ${highlightLabel}`;
     const todayEmpty = payload.todayRow
       ? "No prime time listings are scheduled today."
       : "No 13.1 listings are available for today.";
@@ -435,21 +452,22 @@
         <div>
           <div class="schedule-kicker">WNMU 13.1 schedule</div>
           <h2 class="schedule-title">Prime time and monthly highlights</h2>
-          <p class="schedule-subline">${escapeHtml(subline)}</p>
         </div>
         <a class="schedule-open-link" href="${escapeHtml(schedulePageUrl(payload.todayMonthKey))}" target="_blank" rel="noopener noreferrer">Open full schedule</a>
       </div>
-      <div class="schedule-content-grid schedule-content-grid-three">
-        <section class="schedule-block schedule-block-prime">
-          <h3>Prime time today</h3>
-          ${todayPrimeHtml}
-        </section>
-        <section class="schedule-block schedule-block-prime">
-          <h3>Prime time tomorrow</h3>
-          ${tomorrowPrimeHtml}
-        </section>
+      <div class="schedule-content-grid schedule-content-grid-home">
+        <div class="schedule-prime-stack">
+          <section class="schedule-block schedule-block-prime">
+            <h3>Prime time today</h3>
+            ${todayPrimeHtml}
+          </section>
+          <section class="schedule-block schedule-block-prime">
+            <h3>Prime time tomorrow</h3>
+            ${tomorrowPrimeHtml}
+          </section>
+        </div>
         <section class="schedule-block schedule-block-highlights">
-          <h3>Monthly highlights</h3>
+          <h3>Monthly highlights <span class="schedule-month-range">${escapeHtml(highlightLabel)}</span></h3>
           ${highlightsHtml}
         </section>
       </div>`;
@@ -482,14 +500,21 @@
         entriesByMonth.set(monthKey, row ? entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {})) : []);
       }
 
+      const sharedMarksByMonth = new Map();
+      for (const [monthKey, row] of monthRows.entries()) {
+        if (row) sharedMarksByMonth.set(monthKey, await getMonthlySharedMarks(cfg, monthKey));
+      }
+
       const todayEntries = entriesByMonth.get(todayMonthKey) || [];
       const tomorrowEntries = entriesByMonth.get(tomorrowMonthKey) || [];
+      const todayMarks = sharedMarksByMonth.get(todayMonthKey) || new Map();
+      const tomorrowMarks = sharedMarksByMonth.get(tomorrowMonthKey) || new Map();
       const todayPrimeTime = todayEntries
         .filter((entry) => entry.date === todayKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => ({ ...entry, _timeLabel: formatTime(entry.time), _meta: entryEpisodeText(entry) }));
+        .map((entry) => decorateScheduleEntry(entry, todayMarks, formatTime(entry.time)));
       const tomorrowPrimeTime = tomorrowEntries
         .filter((entry) => entry.date === tomorrowKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => ({ ...entry, _timeLabel: formatTime(entry.time), _meta: entryEpisodeText(entry) }));
+        .map((entry) => decorateScheduleEntry(entry, tomorrowMarks, formatTime(entry.time)));
 
       const highlightRows = [
         [todayMonthKey, todayRow],
@@ -497,11 +522,11 @@
       ].filter(([monthKey, row], index, arr) => monthKey && row && arr.findIndex(([seenMonth]) => seenMonth === monthKey) === index);
 
       const highlightGroups = await Promise.all(highlightRows.map(async ([monthKey, row]) => {
-        const keys = await getMonthlyHighlightMarks(cfg, monthKey);
+        const marks = sharedMarksByMonth.get(monthKey) || await getMonthlySharedMarks(cfg, monthKey);
         const entries = entriesByMonth.get(monthKey) || entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {}));
         return entries
-          .filter((entry) => keys.has(entry._entryKey) || entryHasEmbeddedHighlight(entry))
-          .map((entry) => ({ ...entry, _timeLabel: `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`, _meta: entryEpisodeText(entry) }));
+          .filter((entry) => isHighlightMark(marks.get(entry._entryKey) || {}) || entryHasEmbeddedHighlight(entry))
+          .map((entry) => decorateScheduleEntry(entry, marks, `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`));
       }));
       const highlights = highlightGroups.flat()
         .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))

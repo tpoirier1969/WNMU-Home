@@ -42,3 +42,93 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 @media(max-width:1080px){.schedule-content-grid-three{grid-template-columns:1fr 1fr}.schedule-block-highlights{grid-column:1/-1}}
 @media(max-width:760px){.schedule-content-grid-three{grid-template-columns:1fr}.schedule-block-highlights{grid-column:auto}}
 @media(max-width:520px){.schedule-list-item{grid-template-columns:1fr;gap:3px}.schedule-time{white-space:normal}}
+
+
+/* v1.0.11 compact pledge snapshot and two-column schedule highlights */
+.drive-summary-panel{
+  padding:12px 14px;
+}
+.drive-summary-head-compact{
+  display:grid;
+  grid-template-columns:minmax(220px,.9fr) minmax(440px,1.35fr) auto;
+  align-items:start;
+  gap:10px;
+}
+.drive-summary-head-compact .drive-summary-title-wrap{
+  gap:2px;
+}
+.drive-summary-head-compact .drive-summary-title-line-priority{
+  display:block;
+}
+.drive-summary-priority-row-top{
+  align-self:start;
+  margin-top:0;
+}
+.drive-summary-priority-row-top .drive-summary-priority-card{
+  padding:7px 9px;
+}
+.drive-summary-priority-row-top .drive-summary-priority-card .drive-summary-value{
+  font-size:clamp(1.05rem,1.75vw,1.42rem);
+}
+.drive-summary-head-compact .drive-summary-date{
+  align-self:start;
+  padding-top:1px;
+}
+.drive-summary-secondary-grid{
+  margin-top:8px;
+}
+.drive-summary-secondary-card{
+  padding:7px 9px;
+}
+.schedule-panel{
+  padding:14px 16px;
+}
+.schedule-panel-head{
+  align-items:start;
+}
+.schedule-content-grid-home{
+  grid-template-columns:minmax(235px,.68fr) minmax(0,1.32fr);
+  align-items:start;
+}
+.schedule-prime-stack{
+  display:grid;
+  gap:10px;
+  align-self:start;
+}
+.schedule-block-highlights .highlights-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.schedule-block-highlights .highlights-list .schedule-list-item{
+  margin:0;
+}
+.schedule-month-range{
+  color:var(--muted);
+  font-size:.76rem;
+  font-weight:800;
+  text-transform:none;
+  letter-spacing:0;
+  white-space:nowrap;
+}
+@media(max-width:1040px){
+  .drive-summary-head-compact{
+    grid-template-columns:1fr;
+  }
+  .drive-summary-head-compact .drive-summary-date{
+    padding-top:0;
+  }
+  .schedule-content-grid-home{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:720px){
+  .schedule-block-highlights .highlights-list{
+    grid-template-columns:1fr;
+  }
+  .schedule-month-range{
+    display:block;
+    margin-top:2px;
+    white-space:normal;
+  }
+}
