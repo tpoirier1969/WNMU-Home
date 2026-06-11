@@ -294,3 +294,30 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 .home-auth-chip{display:inline-flex;align-items:center;min-height:38px;max-width:230px;padding:8px 12px;border-radius:12px;border:1px solid rgba(49,95,140,.18);background:#eef5fb;color:#17345f;font-size:.78rem;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-auth-drawer{margin-top:12px;padding:12px 14px;border:1px solid rgba(49,95,140,.18);border-radius:18px;background:rgba(255,255,255,.92);box-shadow:0 8px 22px rgba(15,23,42,.06)}.home-auth-form{display:grid;gap:8px}.home-auth-fields{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:10px;align-items:end}.home-auth-fields label{display:grid;gap:4px;color:#425466;font-size:.74rem;font-weight:850;text-transform:uppercase;letter-spacing:.055em}.home-auth-fields input{min-height:38px;border:1px solid var(--border);border-radius:11px;padding:8px 10px;background:#fff;color:var(--text);font:inherit;text-transform:none;letter-spacing:0}.home-auth-submit{min-height:38px}.home-auth-message{min-height:18px;color:var(--muted);font-size:.82rem;font-weight:700}.home-auth-message.warn{color:#9a3412}.app-card--locked{background:rgba(255,255,255,.68);box-shadow:0 7px 18px rgba(15,23,42,.045)}.app-card--locked:before{opacity:.45}.app-card--locked h2{color:#263443}.app-card__locked-row{display:flex;justify-content:flex-end;margin-top:auto}.disabled-button,.disabled-button:hover,.disabled-button:focus-visible{background:#e8eef5!important;color:#69788a!important;cursor:not-allowed;transform:none!important;filter:none!important}.app-card__access-note{margin:0;color:var(--muted);font-size:.84rem;line-height:1.3}.access-tag{background:#eef2f7;color:#233142}.access-tag--admin{background:#dbeafe;color:#17345f}.access-tag--editor{background:#ede9fe;color:#4c1d95}.access-tag--viewer{background:#dcfce7;color:#166534}.access-tag--none{background:#f1f5f9;color:#64748b}.access-panel{margin-top:14px;padding:14px 16px;border:1px solid var(--border);border-radius:18px;background:rgba(255,255,255,.9);box-shadow:0 9px 22px rgba(15,23,42,.055)}.access-head{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:10px}.access-kicker{color:#315f8c;text-transform:uppercase;letter-spacing:.12em;font-weight:850;font-size:.68rem}.access-title{font-size:1.05rem;font-weight:850;letter-spacing:-.025em;color:#1e332d}.access-home-role{padding:6px 9px;border-radius:999px;background:#eef5fb;color:#17345f;font-size:.78rem;font-weight:850;white-space:nowrap}.access-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.access-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#fbfcfe;font-size:.82rem}.access-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.access-role{font-size:.72rem;text-transform:uppercase;letter-spacing:.055em}.access-role--admin{color:#17345f}.access-role--editor{color:#4c1d95}.access-role--viewer{color:#166534}.access-role--none{color:#64748b}.access-warning{margin-top:9px;color:#9a3412;font-size:.8rem;font-weight:750;line-height:1.32}.hero-copy h1{color:#315f8c}
 @media(max-width:900px){.home-auth-fields{grid-template-columns:1fr}.access-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-auth-chip{max-width:180px}}
 @media(max-width:560px){.hero-actions{justify-content:flex-start;flex-wrap:wrap}.home-auth-chip{max-width:100%;order:3}.access-head{display:grid}.access-grid{grid-template-columns:1fr}}
+
+/* v1.0.17 pledge snapshot sizing balance */
+.drive-summary-priority-row-top .drive-summary-priority-card{
+  padding:8px 10px;
+}
+.drive-summary-priority-row-top .drive-summary-label{
+  font-size:.74rem;
+}
+.drive-summary-priority-row-top .drive-summary-priority-card .drive-summary-value{
+  font-size:clamp(1.28rem,2.22vw,1.78rem);
+  line-height:1.05;
+}
+.drive-summary-secondary-grid{
+  gap:7px;
+}
+.drive-summary-secondary-card{
+  padding:6px 8px;
+}
+.drive-summary-secondary-card .drive-summary-label{
+  font-size:.64rem;
+  letter-spacing:.05em;
+}
+.drive-summary-secondary-card .drive-summary-value{
+  font-size:clamp(.86rem,1.18vw,1.08rem);
+  line-height:1.08;
+  margin-top:1px;
+}
