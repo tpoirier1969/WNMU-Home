@@ -1,56 +1,87 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.7-r2026-06-10";
+  const PORTAL_VERSION = "v1.0.8-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
+  const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
+  const MONTHLY_CHANNEL = "13.1";
+  const MONTHLY_PAGE = "index131.v1.4.1.html";
+  const PRIME_START = "19:00";
+  const PRIME_END = "23:00";
+  const MAX_HIGHLIGHTS = 10;
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
 
   const apps = [
-    {
-      title: "Programming Library",
-      description: "Program titles, rights, topics, and reference data.",
-      url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`,
-      accent: "#315f8c",
-      tagBg: "#e4eef8",
-      tagText: "#315f8c",
-      tags: []
-    },
-    {
-      title: "Pledge Library / Scheduler",
-      description: "Pledge program library, scheduler, and drive tools.",
-      url: `${PLEDGE_APP_ROOT}/`,
-      accent: "#376d5c",
-      tagBg: "#e4f1ed",
-      tagText: "#376d5c",
-      tags: []
-    },
-    {
-      title: "Monthly Schedules",
-      description: "Monthly imports, channel grids, and schedule review.",
-      url: `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules/`,
-      accent: "#62517e",
-      tagBg: "#ece7f4",
-      tagText: "#62517e",
-      tags: []
-    },
-    {
-      title: "Monthly Sales View",
-      description: "Monthly schedule grouped for sales categories.",
-      url: `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules/sales-export.v1.5.72.html`,
-      accent: "#7a612a",
-      tagBg: "#f5ecd4",
-      tagText: "#7a612a",
-      tags: []
-    }
+    { title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
+    { title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
+    { title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
+    { title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
   ];
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function normalizeText(value) { return String(value ?? "").trim(); }
+  function formatMoney(value) {
+    return (Number(value || 0) || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  }
+  function formatCount(value) { return Math.round(Number(value || 0) || 0).toLocaleString("en-US"); }
+  function toLocalDate(dateKey) { return new Date(`${dateKey}T00:00:00`); }
+  function formatDate(dateKey) {
+    const date = toLocalDate(dateKey);
+    return Number.isNaN(date.getTime()) ? (dateKey || "—") : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function formatDateLong(dateKey) {
+    const date = toLocalDate(dateKey);
+    return Number.isNaN(date.getTime()) ? (dateKey || "—") : date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  }
+  function formatDateShort(dateKey) {
+    const date = toLocalDate(dateKey);
+    return Number.isNaN(date.getTime()) ? (dateKey || "—") : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
+  function formatMonthLabel(monthKey) {
+    const [year, month] = String(monthKey || "").split("-").map(Number);
+    return year && month ? new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : (monthKey || "Current month");
+  }
+  function formatTime(timeStr) {
+    const [hh, mm] = String(timeStr || "").split(":").map(Number);
+    return Number.isFinite(hh) && Number.isFinite(mm) ? new Date(2026, 0, 1, hh, mm).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : (timeStr || "");
+  }
+  function dateKeyFromDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function localTodayKey() { return dateKeyFromDate(new Date()); }
+  function plusDays(dateKey, days) {
+    const date = toLocalDate(dateKey);
+    if (Number.isNaN(date.getTime())) return dateKey || "";
+    date.setDate(date.getDate() + Number(days || 0));
+    return dateKeyFromDate(date);
+  }
+  function timeToMinutes(timeStr) {
+    const [hh, mm] = String(timeStr || "").split(":").map(Number);
+    return Number.isFinite(hh) && Number.isFinite(mm) ? (hh * 60) + mm : 0;
+  }
+  function slugify(text) {
+    return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+  function durationForEntry(entry = {}) {
+    const direct = Number(entry.durationMin || entry.durationMinutes || entry.minutes);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const slots = Number(entry.slotCount || entry.slots);
+    return Number.isFinite(slots) && slots > 0 ? slots * 30 : 30;
+  }
+  function buildMonthlyEntryKey(entry = {}) {
+    return `${entry.date}__${entry.time}__${slugify(entry.title)}__${slugify(entry.episode || "no-episode")}`;
+  }
 
   function applyNewTabAttributes(link) {
     link.target = NEW_TAB_ATTRS.target;
     link.rel = NEW_TAB_ATTRS.rel;
     return link;
   }
-
   function renderAppCard(app) {
     const card = document.createElement("article");
     card.className = "app-card";
@@ -63,20 +94,17 @@
 
     const bodyRow = document.createElement("div");
     bodyRow.className = "app-card__body-row";
-
     const description = document.createElement("p");
     description.textContent = app.description;
 
     const actions = document.createElement("div");
     actions.className = "app-actions";
-
     const open = document.createElement("a");
     open.className = "button";
     open.href = app.url;
     open.textContent = "Open";
     open.setAttribute("aria-label", `Open ${app.title} in a new tab`);
-    applyNewTabAttributes(open);
-    actions.appendChild(open);
+    actions.appendChild(applyNewTabAttributes(open));
 
     if (app.fallbackUrl) {
       const fallback = document.createElement("a");
@@ -84,11 +112,11 @@
       fallback.href = app.fallbackUrl;
       fallback.textContent = "Open app home";
       fallback.setAttribute("aria-label", `Open ${app.title} home page in a new tab`);
-      applyNewTabAttributes(fallback);
-      actions.appendChild(fallback);
+      actions.appendChild(applyNewTabAttributes(fallback));
     }
 
     bodyRow.append(description, actions);
+    card.append(heading, bodyRow);
 
     const meta = document.createElement("div");
     meta.className = "app-card__meta";
@@ -98,48 +126,8 @@
       tag.textContent = label;
       meta.appendChild(tag);
     });
-
-    card.append(heading, bodyRow);
     if (meta.children.length) card.appendChild(meta);
     return card;
-  }
-
-  function normalizeText(value) {
-    return String(value ?? "").trim();
-  }
-
-  function formatMoney(value) {
-    const num = Number(value || 0) || 0;
-    return num.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-  }
-
-  function formatCount(value) {
-    const num = Number(value || 0) || 0;
-    return Math.round(num).toLocaleString("en-US");
-  }
-
-  function formatDate(dateKey) {
-    const date = new Date(`${dateKey}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return dateKey || "—";
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  }
-
-  function dateKeyFromDate(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-
-  function localTodayKey() {
-    return dateKeyFromDate(new Date());
-  }
-
-  function plusDays(dateKey, days) {
-    const date = new Date(`${dateKey}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return dateKey || "";
-    date.setDate(date.getDate() + Number(days || 0));
-    return dateKeyFromDate(date);
   }
 
   function loadScript(src) {
@@ -154,60 +142,56 @@
       document.head.appendChild(script);
     });
   }
-
   async function loadPledgeConfig() {
-    if (!window.PLEDGE_MANAGER_CONFIG) {
-      await loadScript(`${PLEDGE_APP_ROOT}/config.js?portal=${encodeURIComponent(PORTAL_VERSION)}&t=${Date.now()}`);
-    }
+    if (!window.PLEDGE_MANAGER_CONFIG) await loadScript(`${PLEDGE_APP_ROOT}/config.js?portal=${encodeURIComponent(PORTAL_VERSION)}&t=${Date.now()}`);
     const cfg = window.PLEDGE_MANAGER_CONFIG || {};
-    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
-      throw new Error("Pledge Library config is not available yet.");
-    }
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) throw new Error("Pledge Library config is not available yet.");
     return cfg;
   }
-
+  async function loadMonthlyConfig() {
+    if (!window.WNMU_SHAREBOARD_SUPABASE) await loadScript(`${MONTHLY_APP_ROOT}/config.js?portal=${encodeURIComponent(PORTAL_VERSION)}&t=${Date.now()}`);
+    const cfg = window.WNMU_SHAREBOARD_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey) throw new Error("Monthly schedule config is not available yet.");
+    return cfg;
+  }
   async function restSelect(cfg, pathAndQuery) {
     const res = await fetch(`${cfg.SUPABASE_URL}${pathAndQuery}`, {
-      headers: {
-        apikey: cfg.SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}`
-      },
+      headers: { apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}` },
       cache: "no-store"
     });
     if (!res.ok) throw new Error(`Supabase read failed (${res.status})`);
+    return res.json();
+  }
+  async function monthlyRestSelect(cfg, pathAndQuery) {
+    const res = await fetch(`${cfg.url}${pathAndQuery}`, {
+      headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+      cache: "no-store"
+    });
+    if (!res.ok) throw new Error(`Monthly schedule read failed (${res.status})`);
     return res.json();
   }
 
   function normalizeSchedule(row = {}) {
     const data = row.schedule_data || {};
     return {
-      id: row.id,
-      title: row.title || "",
-      startDate: row.start_date || "",
-      endDate: row.end_date || "",
+      id: row.id, title: row.title || "", startDate: row.start_date || "", endDate: row.end_date || "",
       placements: Array.isArray(data.placements) ? data.placements : [],
       onlineDollars: Number(data.onlineDollars || 0) || 0,
       mailDollars: Number(data.mailDollars || 0) || 0,
       goalDollars: Number(data.goalDollars || data.goal || 0) || 0,
-      meta: data.meta || {},
-      createdAt: row.created_at || "",
-      updatedAt: row.updated_at || ""
+      meta: data.meta || {}, createdAt: row.created_at || "", updatedAt: row.updated_at || ""
     };
   }
-
   function getScheduleDateSpanInfo(schedule = {}) {
     const startKey = normalizeText(schedule.startDate);
     const endKey = normalizeText(schedule.endDate);
-    if (!startKey || !endKey) return { ok: false };
-    const start = new Date(`${startKey}T00:00:00`);
-    const end = new Date(`${endKey}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return { ok: false };
+    const start = toLocalDate(startKey);
+    const end = toLocalDate(endKey);
+    if (!startKey || !endKey || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return { ok: false };
     return { ok: true };
   }
-
   function scheduleDriveSummaryWindow(schedule = {}) {
-    const span = getScheduleDateSpanInfo(schedule);
-    if (!span.ok) return { show: false, mode: "", endOfWindow: "" };
+    if (!getScheduleDateSpanInfo(schedule).ok) return { show: false, mode: "", endOfWindow: "" };
     const today = localTodayKey();
     const startKey = normalizeText(schedule.startDate);
     const endKey = normalizeText(schedule.endDate);
@@ -216,7 +200,6 @@
     if (today > endKey && today <= endOfWindow) return { show: true, mode: "Post-drive week", endOfWindow };
     return { show: false, mode: "", endOfWindow };
   }
-
   function sortSchedulesNewestFirst(items = []) {
     return [...items].sort((a, b) => {
       const aKey = `${normalizeText(a.endDate)}|${normalizeText(a.startDate)}|${normalizeText(a.updatedAt || a.createdAt)}`;
@@ -224,62 +207,52 @@
       return bKey.localeCompare(aKey);
     });
   }
-
   function scheduleImportedProgramSpecificTotal(schedule = {}) {
     const metaTotal = Number(schedule?.meta?.importedProgramSpecificBroadcastTotalDollars);
     if (Number.isFinite(metaTotal) && metaTotal > 0) return metaTotal;
-    return (schedule?.placements || []).reduce((sum, placement) => {
-      const value = Number(placement?.importedBroadcastDollars);
-      return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
+    return (schedule?.placements || []).reduce((sum, placement) => sum + (Number.isFinite(Number(placement?.importedBroadcastDollars)) ? Number(placement.importedBroadcastDollars) : 0), 0);
   }
-
   function scheduleImportedNonSpecificTotal(schedule = {}) {
     const metaTotal = Number(schedule?.meta?.importedNonSpecificBroadcastTotalDollars);
     return Number.isFinite(metaTotal) && metaTotal > 0 ? metaTotal : 0;
   }
-
   function scheduleImportedAiringTotal(schedule = {}) {
     const metaTotal = Number(schedule?.meta?.importedBroadcastTotalDollars);
     if (Number.isFinite(metaTotal) && metaTotal > 0) return metaTotal;
     const detailedTotal = scheduleImportedProgramSpecificTotal(schedule) + scheduleImportedNonSpecificTotal(schedule);
     return detailedTotal > 0 ? detailedTotal : 0;
   }
-
   function scheduleReportedBroadcastTotal(schedule = {}) {
     const reportTotal = Number(schedule?.meta?.reportedBroadcastTotalDollars);
     return Number.isFinite(reportTotal) && reportTotal > 0 ? reportTotal : 0;
   }
-
   function scheduleBroadcastTotal(schedule = {}) {
     const reported = scheduleReportedBroadcastTotal(schedule);
     return reported > 0 ? reported : scheduleImportedAiringTotal(schedule);
   }
-
   function scheduleImportedPledgesTotal(schedule = {}) {
     const metaTotal = Number(schedule?.meta?.importedPledgesTotal);
     return Number.isFinite(metaTotal) && metaTotal > 0 ? metaTotal : 0;
   }
-
   function scheduleGrandTotal(schedule = {}) {
     return scheduleBroadcastTotal(schedule) + (Number(schedule.onlineDollars || 0) || 0) + (Number(schedule.mailDollars || 0) || 0);
   }
-
   function goalDifferenceTone(value = 0) {
     const num = Number(value || 0) || 0;
     if (num > 0) return "positive";
     if (num < 0) return "negative";
     return "neutral";
   }
-
+  function renderDriveSummaryStatus(message, kind = "loading") {
+    const box = document.getElementById("pledgeDriveSummary");
+    if (!box) return;
+    box.classList.remove("hidden");
+    box.innerHTML = `<div class="drive-summary-${kind}">${escapeHtml(message)}</div>`;
+  }
   function renderDriveSummary(schedule) {
     const box = document.getElementById("pledgeDriveSummary");
     if (!box) return;
-    if (!schedule) {
-      box.classList.add("hidden");
-      box.innerHTML = "";
-      return;
-    }
+    if (!schedule) { box.classList.add("hidden"); box.innerHTML = ""; return; }
 
     const windowInfo = scheduleDriveSummaryWindow(schedule);
     const driveTitle = [windowInfo.mode, schedule.title || "Loaded fundraiser"].filter(Boolean).join(" — ");
@@ -298,21 +271,16 @@
       { label: "Online", value: formatMoney(Number(schedule.onlineDollars || 0) || 0) },
       { label: "Mail", value: formatMoney(Number(schedule.mailDollars || 0) || 0) }
     ];
-
     const priorityHtml = priorityValues.map((item) => `
       <div class="drive-summary-priority-card ${item.important ? "important" : ""} ${item.tone ? `goal-difference-card goal-difference-${item.tone}` : ""}">
         <div class="drive-summary-label">${escapeHtml(item.label)}</div>
         <div class="drive-summary-value ${item.tone ? `goal-difference-value goal-difference-${item.tone}` : ""}">${escapeHtml(item.value)}</div>
-      </div>
-    `).join("");
-
+      </div>`).join("");
     const secondaryHtml = secondaryValues.map((item) => `
       <div class="drive-summary-secondary-card">
         <div class="drive-summary-label">${escapeHtml(item.label)}</div>
         <div class="drive-summary-value">${escapeHtml(item.value)}</div>
-      </div>
-    `).join("");
-
+      </div>`).join("");
     box.innerHTML = `
       <div class="drive-summary-head drive-summary-head-priority">
         <div class="drive-summary-title-wrap">
@@ -324,27 +292,9 @@
         </div>
         <div class="drive-summary-date">${escapeHtml(formatDate(schedule.startDate))} – ${escapeHtml(formatDate(schedule.endDate))}</div>
       </div>
-      <div class="drive-summary-secondary-grid">${secondaryHtml}</div>
-    `;
+      <div class="drive-summary-secondary-grid">${secondaryHtml}</div>`;
     box.classList.remove("hidden");
   }
-
-  function renderDriveSummaryStatus(message, kind = "loading") {
-    const box = document.getElementById("pledgeDriveSummary");
-    if (!box) return;
-    box.classList.remove("hidden");
-    box.innerHTML = `<div class="drive-summary-${kind}">${escapeHtml(message)}</div>`;
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
   async function loadPledgeDriveSummary() {
     const box = document.getElementById("pledgeDriveSummary");
     if (!box) return;
@@ -353,11 +303,159 @@
       const cfg = await loadPledgeConfig();
       const rows = await restSelect(cfg, "/rest/v1/pledge_fundraiser_schedules?select=*&order=start_date.asc&order=title.asc");
       const schedules = sortSchedulesNewestFirst((Array.isArray(rows) ? rows : []).map(normalizeSchedule));
-      const current = schedules.find((schedule) => scheduleDriveSummaryWindow(schedule).show) || null;
-      renderDriveSummary(current);
+      renderDriveSummary(schedules.find((schedule) => scheduleDriveSummaryWindow(schedule).show) || null);
     } catch (error) {
       console.warn("WNMU Home pledge drive summary failed.", error);
       renderDriveSummaryStatus("Pledge drive snapshot could not load here. Open the Pledge Library / Scheduler for the full current view.", "error");
+    }
+  }
+
+  function normalizeMonthlySchedule(raw) {
+    if (!raw || typeof raw !== "object") return { days: [], weeks: [] };
+    (raw.days || []).forEach((day) => {
+      const dayName = day.dayName || day.day || toLocalDate(day.date).toLocaleDateString("en-US", { weekday: "long" });
+      day.dayName = dayName;
+      day.day = day.day || dayName;
+      (day.entries || []).forEach((entry) => {
+        entry.date = entry.date || day.date;
+        entry.dayName = entry.dayName || entry.day || dayName;
+        entry.day = entry.day || entry.dayName;
+      });
+    });
+    return raw;
+  }
+  function entriesFromSchedule(schedule = {}) {
+    const out = [];
+    (schedule.days || []).forEach((day) => {
+      (day.entries || []).forEach((entry) => {
+        if (!entry?.time || !entry?.title) return;
+        const item = { ...entry, date: entry.date || day.date, dayName: entry.dayName || entry.day || day.dayName || day.day || "" };
+        item.durationMin = durationForEntry(item);
+        item._entryKey = buildMonthlyEntryKey(item);
+        out.push(item);
+      });
+    });
+    return out.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  }
+  function entryOverlapsWindow(entry, startTime, endTime) {
+    const start = timeToMinutes(entry.time);
+    const end = start + durationForEntry(entry);
+    return start < timeToMinutes(endTime) && end > timeToMinutes(startTime);
+  }
+  function entryEpisodeText(entry = {}) {
+    const bits = [];
+    if (entry.episode) bits.push(entry.episode);
+    const duration = durationForEntry(entry);
+    if (duration) bits.push(`${duration} min`);
+    return bits.join(" • ");
+  }
+  function schedulePageUrl(monthKey) {
+    const query = monthKey ? `?month=${encodeURIComponent(monthKey)}&v=${encodeURIComponent(PORTAL_VERSION)}` : `?v=${encodeURIComponent(PORTAL_VERSION)}`;
+    return `${MONTHLY_APP_ROOT}/${MONTHLY_PAGE}${query}`;
+  }
+  function isHighlightMark(raw = {}) {
+    if (!raw || typeof raw !== "object") return false;
+    return raw?.tags?.highlight === true || raw.highlight === true || raw?.mark_json?.tags?.highlight === true || raw?.mark_json?.highlight === true;
+  }
+  function entryHasEmbeddedHighlight(entry = {}) {
+    return entry.highlight === true || entry?.tags?.highlight === true || (Array.isArray(entry.tags) && entry.tags.map(String).some((tag) => tag.toLowerCase() === "highlight"));
+  }
+  async function getMonthlyCurrentMonth(cfg) {
+    const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_current_months?select=channel_code,month_key&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&limit=1`);
+    const current = Array.isArray(rows) ? rows[0]?.month_key : "";
+    if (current) return current;
+    const latestRows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_imported_months?select=channel_code,month_key&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&order=month_key.desc&limit=1`);
+    return Array.isArray(latestRows) ? (latestRows[0]?.month_key || "") : "";
+  }
+  async function getMonthlyScheduleRow(cfg, monthKey) {
+    const select = "channel_code,channel_label,month_key,label,page_title,schedule_json,updated_at,published_at";
+    const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_imported_months?select=${select}&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`);
+    if (!Array.isArray(rows) || !rows.length) throw new Error(`No imported month found for ${MONTHLY_CHANNEL} ${monthKey}.`);
+    return rows[0];
+  }
+  async function getMonthlyHighlightMarks(cfg, monthKey) {
+    try {
+      const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_shared_marks?select=entry_key,mark_json&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=2000`);
+      const keys = new Set();
+      (Array.isArray(rows) ? rows : []).forEach((row) => {
+        if (row?.entry_key && isHighlightMark(row.mark_json || row)) keys.add(row.entry_key);
+      });
+      return keys;
+    } catch (error) {
+      console.warn("WNMU Home monthly highlight marks failed.", error);
+      return new Set();
+    }
+  }
+  function renderScheduleList(entries, className = "schedule-list") {
+    return `<ul class="${className}">${entries.map((entry) => `
+      <li class="schedule-list-item">
+        <div class="schedule-time">${escapeHtml(entry._timeLabel)}</div>
+        <div>
+          <div class="schedule-program-title">${escapeHtml(entry.title)}</div>
+          ${entry._meta ? `<div class="schedule-program-meta">${escapeHtml(entry._meta)}</div>` : ""}
+        </div>
+      </li>`).join("")}</ul>`;
+  }
+  function renderScheduleSummaryStatus(message) {
+    const box = document.getElementById("homeScheduleSummary");
+    if (!box) return;
+    box.classList.remove("hidden");
+    box.innerHTML = `<div class="schedule-loading">${escapeHtml(message)}</div>`;
+  }
+  function renderHomeScheduleSummary(payload) {
+    const box = document.getElementById("homeScheduleSummary");
+    if (!box) return;
+    if (!payload) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+    const monthLabel = payload.row.label || formatMonthLabel(payload.monthKey);
+    const primeHtml = payload.primeTime.length ? renderScheduleList(payload.primeTime) : `<div class="schedule-empty">No prime time listings are available for today.</div>`;
+    const highlightsHtml = payload.highlights.length ? renderScheduleList(payload.highlights, "schedule-list highlights-list") : `<div class="schedule-empty">Monthly highlights are being selected.</div>`;
+
+    box.innerHTML = `
+      <div class="schedule-panel-head">
+        <div>
+          <div class="schedule-kicker">WNMU 13.1 schedule</div>
+          <h2 class="schedule-title">Tonight and monthly highlights</h2>
+          <p class="schedule-subline">${escapeHtml(formatDateLong(payload.todayKey))} • ${escapeHtml(monthLabel)}</p>
+        </div>
+        <a class="schedule-open-link" href="${escapeHtml(schedulePageUrl(payload.monthKey))}" target="_blank" rel="noopener noreferrer">Open full schedule</a>
+      </div>
+      <div class="schedule-content-grid">
+        <section class="schedule-block">
+          <h3>Prime time today</h3>
+          ${primeHtml}
+        </section>
+        <section class="schedule-block">
+          <h3>Monthly highlights</h3>
+          ${highlightsHtml}
+        </section>
+      </div>`;
+    box.classList.remove("hidden");
+  }
+  async function loadHomeScheduleSummary() {
+    const box = document.getElementById("homeScheduleSummary");
+    if (!box) return;
+    renderScheduleSummaryStatus("Loading WNMU 13.1 schedule…");
+    try {
+      const cfg = await loadMonthlyConfig();
+      const monthKey = await getMonthlyCurrentMonth(cfg);
+      if (!monthKey) throw new Error("No current monthly schedule is set.");
+      const row = await getMonthlyScheduleRow(cfg, monthKey);
+      const schedule = normalizeMonthlySchedule(row.schedule_json || {});
+      const entries = entriesFromSchedule(schedule);
+      const todayKey = localTodayKey();
+      const highlightKeys = await getMonthlyHighlightMarks(cfg, monthKey);
+      const primeTime = entries
+        .filter((entry) => entry.date === todayKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
+        .map((entry) => ({ ...entry, _timeLabel: formatTime(entry.time), _meta: entryEpisodeText(entry) }));
+      const highlights = entries
+        .filter((entry) => highlightKeys.has(entry._entryKey) || entryHasEmbeddedHighlight(entry))
+        .slice(0, MAX_HIGHLIGHTS)
+        .map((entry) => ({ ...entry, _timeLabel: `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`, _meta: entryEpisodeText(entry) }));
+      renderHomeScheduleSummary({ row, monthKey, todayKey, primeTime, highlights });
+    } catch (error) {
+      console.warn("WNMU Home schedule summary failed.", error);
+      renderHomeScheduleSummary(null);
     }
   }
 
@@ -369,11 +467,9 @@
     }
     document.title = `WNMU Home • ${PORTAL_VERSION}`;
     void loadPledgeDriveSummary();
+    void loadHomeScheduleSummary();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
