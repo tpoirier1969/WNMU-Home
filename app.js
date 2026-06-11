@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.15-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.16-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -19,12 +19,31 @@
     { key: "fundraiser", label: "Fundraiser" }
   ];
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
+  const SUPABASE_JS_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+  const ROLE_TABLE_NAME = "wnmu_app_user_roles";
+  const BOOTSTRAP_ADMIN_EMAILS = ["tpoirier@nmu.edu"];
+  const ROLE_PRIORITY = { none: 0, viewer: 1, editor: 2, admin: 3 };
+  const ROLE_LABELS = { viewer: "Viewer", editor: "Editor", admin: "Admin" };
+  const HOME_APP_KEY = "home";
+  const homeState = {
+    authClient: null,
+    authReady: false,
+    authBound: false,
+    authDrawerOpen: false,
+    authError: "",
+    authMessage: "",
+    rolesError: "",
+    session: null,
+    user: null,
+    roles: new Map(),
+    displayName: ""
+  };
 
   const apps = [
-    { title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
-    { title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
-    { title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
-    { title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
+    { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
+    { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
+    { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
+    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
   ];
 
   function escapeHtml(value) {
@@ -92,20 +111,91 @@
     return `${entry.date}__${entry.time}__${slugify(entry.title)}__${slugify(entry.episode || "no-episode")}`;
   }
 
+  function normalizeEmail(value) { return normalizeText(value).toLowerCase(); }
+  function normalizeRole(value) {
+    const role = normalizeText(value).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(ROLE_PRIORITY, role) && role !== "none" ? role : "";
+  }
+  function roleRank(role) { return ROLE_PRIORITY[normalizeRole(role)] || 0; }
+  function roleLabel(role) { return ROLE_LABELS[normalizeRole(role)] || "No access"; }
+  function isSignedIn() { return Boolean(homeState.user?.email); }
+  function roleForApp(appKey) { return normalizeRole(homeState.roles.get(appKey)); }
+  function hasAppAccess(appKey) { return isSignedIn() && roleRank(roleForApp(appKey)) >= ROLE_PRIORITY.viewer; }
+  function setRole(appKey, role) {
+    const normalized = normalizeRole(role);
+    if (!appKey || !normalized) return;
+    const existing = roleForApp(appKey);
+    if (roleRank(normalized) >= roleRank(existing)) homeState.roles.set(appKey, normalized);
+  }
+  function applyBootstrapAdminRoles(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!BOOTSTRAP_ADMIN_EMAILS.map(normalizeEmail).includes(normalizedEmail)) return;
+    setRole(HOME_APP_KEY, "admin");
+    apps.forEach((app) => setRole(app.appKey, "admin"));
+  }
+  function applyRoleRows(rows = []) {
+    (rows || []).forEach((row) => {
+      if (row?.is_active === false) return;
+      const appKey = normalizeText(row?.app_key || row?.app || row?.module_key || row?.module || "");
+      const role = normalizeRole(row?.role || row?.access_role || "");
+      setRole(appKey, role);
+      if (!homeState.displayName) homeState.displayName = normalizeText(row?.display_name || row?.name || "");
+    });
+  }
+  function displayUserName() {
+    return homeState.displayName || normalizeText(homeState.user?.email) || "Signed in";
+  }
+
   function applyNewTabAttributes(link) {
     link.target = NEW_TAB_ATTRS.target;
     link.rel = NEW_TAB_ATTRS.rel;
     return link;
   }
+  function renderRoleTag(role) {
+    const normalized = normalizeRole(role);
+    const tag = document.createElement("span");
+    tag.className = `tag access-tag access-tag--${normalized || "none"}`;
+    tag.textContent = roleLabel(normalized);
+    return tag;
+  }
   function renderAppCard(app) {
     const card = document.createElement("article");
-    card.className = "app-card";
+    const signedIn = isSignedIn();
+    const role = roleForApp(app.appKey);
+    const canOpen = hasAppAccess(app.appKey);
+    card.className = `app-card${canOpen ? "" : " app-card--locked"}`;
     card.style.setProperty("--accent", app.accent);
     card.style.setProperty("--tag-bg", app.tagBg);
     card.style.setProperty("--tag-text", app.tagText);
 
     const heading = document.createElement("h2");
     heading.textContent = app.title;
+    card.append(heading);
+
+    if (!signedIn) {
+      const lockedRow = document.createElement("div");
+      lockedRow.className = "app-card__locked-row";
+      const lockedButton = document.createElement("button");
+      lockedButton.type = "button";
+      lockedButton.className = "button disabled-button";
+      lockedButton.disabled = true;
+      lockedButton.textContent = "Locked";
+      lockedRow.appendChild(lockedButton);
+      card.appendChild(lockedRow);
+      return card;
+    }
+
+    if (!canOpen) {
+      const noAccess = document.createElement("p");
+      noAccess.className = "app-card__access-note";
+      noAccess.textContent = "No access assigned for this account.";
+      card.append(noAccess);
+      const meta = document.createElement("div");
+      meta.className = "app-card__meta";
+      meta.appendChild(renderRoleTag(role));
+      card.appendChild(meta);
+      return card;
+    }
 
     const bodyRow = document.createElement("div");
     bodyRow.className = "app-card__body-row";
@@ -131,10 +221,11 @@
     }
 
     bodyRow.append(description, actions);
-    card.append(heading, bodyRow);
+    card.append(bodyRow);
 
     const meta = document.createElement("div");
     meta.className = "app-card__meta";
+    meta.appendChild(renderRoleTag(role));
     (app.tags || []).forEach((label) => {
       const tag = document.createElement("span");
       tag.className = "tag";
@@ -143,6 +234,60 @@
     });
     if (meta.children.length) card.appendChild(meta);
     return card;
+  }
+
+  function renderAppGrid() {
+    const grid = document.querySelector("[data-app-grid]");
+    if (!grid) return;
+    grid.textContent = "";
+    apps.forEach((app) => grid.appendChild(renderAppCard(app)));
+  }
+  function renderAccessPanel() {
+    const box = document.getElementById("homeAccessPanel");
+    if (!box) return;
+    if (!isSignedIn()) {
+      box.classList.add("hidden");
+      box.innerHTML = "";
+      return;
+    }
+    box.classList.remove("hidden");
+    const rows = apps.map((app) => {
+      const role = roleForApp(app.appKey);
+      return `<div class="access-row"><span>${escapeHtml(app.title)}</span><strong class="access-role access-role--${escapeHtml(role || "none")}">${escapeHtml(roleLabel(role))}</strong></div>`;
+    }).join("");
+    const warning = homeState.rolesError ? `<div class="access-warning">${escapeHtml(homeState.rolesError)}</div>` : "";
+    box.innerHTML = `
+      <div class="access-head">
+        <div>
+          <div class="access-kicker">Signed in</div>
+          <div class="access-title">${escapeHtml(displayUserName())}</div>
+        </div>
+        <div class="access-home-role">Home: ${escapeHtml(roleLabel(roleForApp(HOME_APP_KEY)))}</div>
+      </div>
+      <div class="access-grid">${rows}</div>
+      ${warning}
+    `;
+  }
+  function renderAuthControls() {
+    const chip = document.getElementById("homeAuthChip");
+    const loginButton = document.getElementById("homeLoginButton");
+    const logoutButton = document.getElementById("homeLogoutButton");
+    const drawer = document.getElementById("homeAuthDrawer");
+    const message = document.getElementById("homeAuthMessage");
+    const signedIn = isSignedIn();
+    if (chip) chip.textContent = signedIn ? displayUserName() : (homeState.authError ? "Login unavailable" : "Public view");
+    if (loginButton) loginButton.classList.toggle("hidden", signedIn);
+    if (logoutButton) logoutButton.classList.toggle("hidden", !signedIn);
+    if (drawer) drawer.classList.toggle("hidden", signedIn || !homeState.authDrawerOpen);
+    if (message) {
+      message.textContent = homeState.authMessage || homeState.authError || "";
+      message.classList.toggle("warn", Boolean(homeState.authError));
+    }
+    renderAccessPanel();
+  }
+  function renderHomeShell() {
+    renderAppGrid();
+    renderAuthControls();
   }
 
   function loadScript(src) {
@@ -191,6 +336,121 @@
     if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) throw new Error("Programming Library config is not available yet.");
     return cfg;
   }
+  async function ensureSupabaseJs() {
+    if (window.supabase?.createClient) return;
+    await loadScript(SUPABASE_JS_URL);
+    if (!window.supabase?.createClient) throw new Error("Supabase sign-in library did not load.");
+  }
+  async function ensureHomeAuthClient() {
+    if (homeState.authClient) return homeState.authClient;
+    await ensureSupabaseJs();
+    const cfg = await loadProgrammingConfig();
+    homeState.authClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      global: { fetch: (input, init = {}) => fetch(input, { ...init, cache: "no-store" }) }
+    });
+    return homeState.authClient;
+  }
+  async function fetchRoleRowsForCurrentUser() {
+    homeState.rolesError = "";
+    homeState.roles = new Map();
+    homeState.displayName = "";
+    const email = normalizeEmail(homeState.user?.email || "");
+    if (!email) return;
+    applyBootstrapAdminRoles(email);
+    try {
+      const client = await ensureHomeAuthClient();
+      const { data, error } = await client
+        .from(ROLE_TABLE_NAME)
+        .select("email,app_key,role,is_active,display_name")
+        .ilike("email", email);
+      if (error) throw error;
+      applyRoleRows((data || []).filter((row) => row?.is_active !== false));
+      applyBootstrapAdminRoles(email);
+      if (!homeState.roles.size) homeState.rolesError = "This account is signed in, but no module access has been assigned yet.";
+    } catch (error) {
+      console.warn("WNMU Home role lookup failed.", error);
+      homeState.rolesError = "Role lookup is not available yet. Only temporary bootstrap access is active.";
+      applyBootstrapAdminRoles(email);
+    }
+  }
+  async function refreshHomeAuthFromSession(session) {
+    homeState.session = session || null;
+    homeState.user = session?.user || null;
+    homeState.authError = "";
+    homeState.authMessage = "";
+    if (homeState.user) await fetchRoleRowsForCurrentUser();
+    else {
+      homeState.roles = new Map();
+      homeState.rolesError = "";
+      homeState.displayName = "";
+    }
+    renderHomeShell();
+  }
+  function bindHomeAuthEvents() {
+    if (homeState.authBound) return;
+    homeState.authBound = true;
+    const loginButton = document.getElementById("homeLoginButton");
+    const logoutButton = document.getElementById("homeLogoutButton");
+    const form = document.getElementById("homeLoginForm");
+    if (loginButton) loginButton.addEventListener("click", () => {
+      homeState.authDrawerOpen = !homeState.authDrawerOpen;
+      homeState.authMessage = "";
+      homeState.authError = "";
+      renderAuthControls();
+      if (homeState.authDrawerOpen) window.setTimeout(() => document.getElementById("homeLoginEmail")?.focus(), 0);
+    });
+    if (logoutButton) logoutButton.addEventListener("click", async () => {
+      try {
+        const client = await ensureHomeAuthClient();
+        await client.auth.signOut();
+        await refreshHomeAuthFromSession(null);
+      } catch (error) {
+        homeState.authError = error?.message || "Sign out failed.";
+        renderAuthControls();
+      }
+    });
+    if (form) form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const emailInput = document.getElementById("homeLoginEmail");
+      const passwordInput = document.getElementById("homeLoginPassword");
+      const email = normalizeText(emailInput?.value || "");
+      const password = String(passwordInput?.value || "");
+      if (!email || !password) return;
+      homeState.authMessage = "Signing in…";
+      homeState.authError = "";
+      renderAuthControls();
+      try {
+        const client = await ensureHomeAuthClient();
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        homeState.authDrawerOpen = false;
+        if (passwordInput) passwordInput.value = "";
+        await refreshHomeAuthFromSession(data?.session || null);
+      } catch (error) {
+        homeState.authError = error?.message || "Sign in failed.";
+        homeState.authMessage = "";
+        renderAuthControls();
+      }
+    });
+  }
+  async function initHomeAuth() {
+    bindHomeAuthEvents();
+    renderAuthControls();
+    try {
+      const client = await ensureHomeAuthClient();
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      await refreshHomeAuthFromSession(data?.session || null);
+      client.auth.onAuthStateChange((_event, session) => { void refreshHomeAuthFromSession(session); });
+      homeState.authReady = true;
+    } catch (error) {
+      console.warn("WNMU Home sign-in setup failed.", error);
+      homeState.authError = "Sign in is not available yet.";
+      renderAuthControls();
+    }
+  }
+
   async function externalRestSelectPaged(cfg, pathAndQuery, maxRows = 5000) {
     const urlRoot = cfg.SUPABASE_URL || cfg.url || "";
     const anonKey = cfg.SUPABASE_ANON_KEY || cfg.anonKey || "";
@@ -890,12 +1150,9 @@
   }
 
   function init() {
-    const grid = document.querySelector("[data-app-grid]");
-    if (grid) {
-      grid.textContent = "";
-      apps.forEach((app) => grid.appendChild(renderAppCard(app)));
-    }
     document.title = `WNMU Home • ${PORTAL_VERSION}`;
+    renderHomeShell();
+    void initHomeAuth();
     void loadPledgeDriveSummary();
     void loadHomeScheduleSummary();
   }
