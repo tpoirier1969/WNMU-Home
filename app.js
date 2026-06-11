@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.12-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.13-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
@@ -390,9 +390,32 @@
     }
     return false;
   }
+  function entryWeekday(entry = {}) {
+    if (entry.dayName || entry.day) return normalizeText(entry.dayName || entry.day);
+    const date = toLocalDate(entry.date || "");
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-US", { weekday: "long" });
+  }
+  function timeInRangeInclusive(timeStr, startTime, endTime) {
+    const time = timeToMinutes(timeStr);
+    return time >= timeToMinutes(startTime) && time <= timeToMinutes(endTime);
+  }
+  function isSuppressedNewSeriesSlot(entry = {}) {
+    const weekday = entryWeekday(entry);
+    if (timeInRangeInclusive(entry.time, "01:00", "07:00")) return true;
+    if (["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(weekday) && timeInRangeInclusive(entry.time, "08:30", "15:00")) return true;
+    return false;
+  }
+  function entryHasAutoFeatureTag(entry = {}, tagKey) {
+    if (tagKey === "newSeries") return !!entry.seasonStart && !isSuppressedNewSeriesSlot(entry);
+    if (tagKey === "programmersChoice") {
+      const weekday = entryWeekday(entry);
+      return (weekday === "Sunday" && entry.time === "19:00") || (weekday === "Saturday" && entry.time === "20:00");
+    }
+    return false;
+  }
   function featuredTagLabelsForEntry(entry = {}, mark = {}) {
     return FEATURED_MONTHLY_TAGS
-      .filter((tag) => tagIsActiveInPayload(mark, tag.key) || entryHasEmbeddedTag(entry, tag.key))
+      .filter((tag) => tagIsActiveInPayload(mark, tag.key) || entryHasEmbeddedTag(entry, tag.key) || entryHasAutoFeatureTag(entry, tag.key))
       .map((tag) => tag.label);
   }
   function entryKeyDateTime(entryKey = "") {
@@ -424,7 +447,7 @@
   }
   async function getMonthlyScheduleRowOrNull(cfg, monthKey) {
     if (!monthKey) return null;
-    const select = "channel_code,channel_label,month_key,label,page_title,schedule_json,updated_at,published_at";
+    const select = "channel_code,channel_label,month_key,label,page_title,storage_key,schedule_json,updated_at,published_at";
     const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_imported_months?select=${select}&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=1`);
     return Array.isArray(rows) && rows.length ? rows[0] : null;
   }
@@ -459,6 +482,26 @@
       console.warn("WNMU Home monthly shared marks failed.", error);
       return new Map();
     }
+  }
+  function getMonthlyLocalMarks(row = {}) {
+    const storageKey = normalizeText(row.storage_key);
+    if (!storageKey) return new Map();
+    try {
+      const parsed = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      const marks = new Map();
+      Object.entries(parsed && typeof parsed === "object" ? parsed : {}).forEach(([entryKey, value]) => {
+        if (entryKey && value && typeof value === "object" && markLooksUsefulForHome(value)) marks.set(entryKey, value);
+      });
+      return marks;
+    } catch (error) {
+      console.warn("WNMU Home monthly local marks read failed.", error);
+      return new Map();
+    }
+  }
+  async function getMonthlyMarks(cfg, row = {}) {
+    const marks = await getMonthlySharedMarks(cfg, row.month_key);
+    for (const [entryKey, value] of getMonthlyLocalMarks(row).entries()) marks.set(entryKey, value);
+    return marks;
   }
   function renderScheduleList(entries, className = "schedule-list") {
     return `<ul class="${className}">${entries.map((entry) => `
@@ -548,7 +591,7 @@
 
       const sharedMarksByMonth = new Map();
       for (const [monthKey, row] of monthRows.entries()) {
-        if (row) sharedMarksByMonth.set(monthKey, await getMonthlySharedMarks(cfg, monthKey));
+        if (row) sharedMarksByMonth.set(monthKey, await getMonthlyMarks(cfg, row));
       }
 
       const todayEntries = entriesByMonth.get(todayMonthKey) || [];
@@ -568,7 +611,7 @@
       ].filter(([monthKey, row], index, arr) => monthKey && row && arr.findIndex(([seenMonth]) => seenMonth === monthKey) === index);
 
       const highlightGroups = await Promise.all(highlightRows.map(async ([monthKey, row]) => {
-        const marks = sharedMarksByMonth.get(monthKey) || await getMonthlySharedMarks(cfg, monthKey);
+        const marks = sharedMarksByMonth.get(monthKey) || await getMonthlyMarks(cfg, row);
         const entries = entriesByMonth.get(monthKey) || entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {}));
         return entries
           .filter((entry) => featuredTagLabelsForEntry(entry, findMarkForEntry(entry, marks)).length > 0)

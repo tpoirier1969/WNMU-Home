@@ -166,3 +166,49 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
   min-height:16px;
   padding:1px 4px;
 }
+
+
+/* v1.0.13 narrower prime-time column and smaller schedule titles */
+.schedule-content-grid-home{
+  grid-template-columns:minmax(188px,.5fr) minmax(0,1.5fr);
+}
+.schedule-block-prime{
+  padding:10px;
+}
+.schedule-block-prime .schedule-list-item{
+  grid-template-columns:48px minmax(0,1fr);
+  gap:6px;
+  padding:6px 7px;
+}
+.schedule-panel .schedule-title{
+  font-size:clamp(1.125rem,calc(2.2vw - 2px),1.65rem);
+}
+.schedule-panel .schedule-block h3{
+  font-size:.78rem;
+}
+.schedule-panel .schedule-program-title{
+  font-size:.72rem;
+}
+.schedule-block-highlights .schedule-program-title,
+.highlights-list .schedule-program-title{
+  font-size:.68rem;
+}
+.schedule-panel .schedule-time{
+  font-size:.7rem;
+}
+.schedule-panel .schedule-kicker{
+  font-size:.65rem;
+}
+.schedule-block-highlights .highlights-list{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+@media(max-width:1040px){
+  .schedule-content-grid-home{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:720px){
+  .schedule-block-highlights .highlights-list{
+    grid-template-columns:1fr;
+  }
+}
