@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.11-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.12-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
@@ -10,6 +10,13 @@
   const PRIME_START = "19:00";
   const PRIME_END = "23:00";
   const MAX_HIGHLIGHTS = 999;
+  const FEATURED_MONTHLY_TAGS = [
+    { key: "highlight", label: "Highlight" },
+    { key: "newSeries", label: "New Series" },
+    { key: "holiday", label: "Holiday" },
+    { key: "programmersChoice", label: "Programmer's Choice" },
+    { key: "fundraiser", label: "Fundraiser" }
+  ];
   const NEW_TAB_ATTRS = { target: "_blank", rel: "noopener noreferrer" };
 
   const apps = [
@@ -364,12 +371,49 @@
     const query = monthKey ? `?month=${encodeURIComponent(monthKey)}&v=${encodeURIComponent(PORTAL_VERSION)}` : `?v=${encodeURIComponent(PORTAL_VERSION)}`;
     return `${MONTHLY_APP_ROOT}/${MONTHLY_PAGE}${query}`;
   }
-  function isHighlightMark(raw = {}) {
-    if (!raw || typeof raw !== "object") return false;
-    return raw?.tags?.highlight === true || raw.highlight === true || raw?.mark_json?.tags?.highlight === true || raw?.mark_json?.highlight === true;
+  function markPayload(raw = {}) {
+    return raw?.mark_json && typeof raw.mark_json === "object" ? raw.mark_json : (raw || {});
   }
-  function entryHasEmbeddedHighlight(entry = {}) {
-    return entry.highlight === true || entry?.tags?.highlight === true || (Array.isArray(entry.tags) && entry.tags.map(String).some((tag) => tag.toLowerCase() === "highlight"));
+  function normalizedTagKey(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+  function tagIsActiveInPayload(raw = {}, tagKey) {
+    const source = markPayload(raw);
+    return source?.tags?.[tagKey] === true || source?.[tagKey] === true;
+  }
+  function entryHasEmbeddedTag(entry = {}, tagKey) {
+    if (entry?.[tagKey] === true) return true;
+    if (entry?.tags?.[tagKey] === true) return true;
+    if (Array.isArray(entry.tags)) {
+      const wanted = normalizedTagKey(tagKey);
+      return entry.tags.some((tag) => normalizedTagKey(tag) === wanted);
+    }
+    return false;
+  }
+  function featuredTagLabelsForEntry(entry = {}, mark = {}) {
+    return FEATURED_MONTHLY_TAGS
+      .filter((tag) => tagIsActiveInPayload(mark, tag.key) || entryHasEmbeddedTag(entry, tag.key))
+      .map((tag) => tag.label);
+  }
+  function entryKeyDateTime(entryKey = "") {
+    const match = String(entryKey || "").match(/^(\d{4}-\d{2}-\d{2})__(\d{2}:\d{2})__/);
+    return match ? `${match[1]}__${match[2]}` : "";
+  }
+  function entryDateTime(entry = {}) {
+    return `${entry.date || ""}__${entry.time || ""}`;
+  }
+  function markLooksUsefulForHome(mark = {}) {
+    return !!boxNoteTextFromMark(mark) || FEATURED_MONTHLY_TAGS.some((tag) => tagIsActiveInPayload(mark, tag.key));
+  }
+  function findMarkForEntry(entry = {}, marksMap) {
+    if (!(marksMap instanceof Map)) return {};
+    const exact = marksMap.get(entry._entryKey);
+    if (exact && markLooksUsefulForHome(exact)) return exact;
+    const wantedDateTime = entryDateTime(entry);
+    for (const [entryKey, mark] of marksMap.entries()) {
+      if (entryKeyDateTime(entryKey) === wantedDateTime && markLooksUsefulForHome(mark)) return mark || {};
+    }
+    return exact || {};
   }
   async function getMonthlyCurrentMonth(cfg) {
     const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_current_months?select=channel_code,month_key&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&limit=1`);
@@ -385,7 +429,7 @@
     return Array.isArray(rows) && rows.length ? rows[0] : null;
   }
   function boxNoteTextFromMark(mark = {}) {
-    const source = mark?.mark_json && typeof mark.mark_json === "object" ? mark.mark_json : mark;
+    const source = markPayload(mark);
     const text = normalizeText(source?.rectNote?.text || source?.note || source?.whiteout?.text || "");
     if (!text || text.startsWith("__WNMU_NOTE__")) return "";
     return text;
@@ -394,12 +438,13 @@
     return boxNoteTextFromMark(mark) || entry.title || "";
   }
   function decorateScheduleEntry(entry, marksMap, timeLabel) {
-    const mark = marksMap instanceof Map ? (marksMap.get(entry._entryKey) || {}) : {};
+    const mark = findMarkForEntry(entry, marksMap);
     return {
       ...entry,
       title: displayTitleForEntry(entry, mark),
       _timeLabel: timeLabel,
-      _meta: entryEpisodeText(entry)
+      _meta: entryEpisodeText(entry),
+      _tags: featuredTagLabelsForEntry(entry, mark)
     };
   }
   async function getMonthlySharedMarks(cfg, monthKey) {
@@ -421,6 +466,7 @@
         <div class="schedule-time">${escapeHtml(entry._timeLabel)}</div>
         <div>
           <div class="schedule-program-title">${escapeHtml(entry.title)}</div>
+          ${entry._tags?.length ? `<div class="schedule-tag-row">${entry._tags.map((tag) => `<span class="schedule-feature-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
           ${entry._meta ? `<div class="schedule-program-meta">${escapeHtml(entry._meta)}</div>` : ""}
         </div>
       </li>`).join("")}</ul>`;
@@ -525,7 +571,7 @@
         const marks = sharedMarksByMonth.get(monthKey) || await getMonthlySharedMarks(cfg, monthKey);
         const entries = entriesByMonth.get(monthKey) || entriesFromSchedule(normalizeMonthlySchedule(row.schedule_json || {}));
         return entries
-          .filter((entry) => isHighlightMark(marks.get(entry._entryKey) || {}) || entryHasEmbeddedHighlight(entry))
+          .filter((entry) => featuredTagLabelsForEntry(entry, findMarkForEntry(entry, marks)).length > 0)
           .map((entry) => decorateScheduleEntry(entry, marks, `${formatDateShort(entry.date)} • ${formatTime(entry.time)}`));
       }));
       const highlights = highlightGroups.flat()

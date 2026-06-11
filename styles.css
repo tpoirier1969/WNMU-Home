@@ -132,3 +132,37 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     white-space:normal;
   }
 }
+
+
+/* v1.0.12 expanded monthly highlight tag preview */
+.schedule-tag-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:3px;
+  margin-top:3px;
+}
+.schedule-feature-tag{
+  display:inline-flex;
+  align-items:center;
+  min-height:17px;
+  padding:1px 5px;
+  border-radius:999px;
+  border:1px solid #d7e0ea;
+  background:#f4f7fb;
+  color:#43556c;
+  font-size:.62rem;
+  line-height:1.1;
+  font-weight:850;
+  white-space:nowrap;
+}
+.highlights-list .schedule-program-title{
+  font-size:.8rem;
+}
+.highlights-list .schedule-program-meta{
+  font-size:.7rem;
+}
+.highlights-list .schedule-feature-tag{
+  font-size:.58rem;
+  min-height:16px;
+  padding:1px 4px;
+}
