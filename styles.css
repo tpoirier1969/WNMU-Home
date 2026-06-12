@@ -675,3 +675,86 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     width:100%;
   }
 }
+
+
+/* v1.0.23 Home admin polish and persistent pledge totals */
+.admin-user-panel{
+  --accent:#17345f;
+}
+.admin-user-actions .button:not(.secondary){
+  background:#17345f;
+  color:#fff;
+}
+.admin-password-buttons{
+  display:flex;
+  gap:8px;
+  align-items:end;
+  flex-wrap:wrap;
+}
+.admin-password-buttons .button{
+  min-height:38px;
+}
+.access-head-compact{
+  margin-bottom:0;
+}
+.access-home-role,
+.access-grid{
+  display:none!important;
+}
+.app-card__meta:empty{
+  display:none;
+}
+.drive-summary-sections{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:8px;
+}
+.drive-summary-block{
+  min-width:0;
+  display:grid;
+  gap:8px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:#fbfcfe;
+  padding:12px;
+}
+.drive-summary-block-head{
+  display:grid;
+  gap:3px;
+}
+.drive-summary-block .drive-summary-title{
+  font-size:clamp(1rem,1.45vw,1.28rem);
+  line-height:1.08;
+}
+.drive-summary-block .drive-summary-date{
+  white-space:normal;
+  font-size:.78rem;
+}
+.drive-summary-block .drive-summary-priority-row-top{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.drive-summary-block .drive-summary-secondary-grid{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+}
+@media(max-width:1040px){
+  .drive-summary-sections{
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:760px){
+  .admin-password-buttons,
+  .admin-password-buttons .button{
+    width:100%;
+  }
+  .drive-summary-block .drive-summary-priority-row-top,
+  .drive-summary-block .drive-summary-secondary-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
+@media(max-width:520px){
+  .drive-summary-block .drive-summary-priority-row-top,
+  .drive-summary-block .drive-summary-secondary-grid{
+    grid-template-columns:1fr;
+  }
+}

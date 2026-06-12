@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.22-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.23-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -23,6 +23,7 @@
   const ROLE_TABLE_NAME = "wnmu_app_user_roles";
   const INTERNAL_LOGIN_DOMAIN = "local.wnmu";
   const BOOTSTRAP_ADMIN_EMAILS = ["tpoirier@nmu.edu"];
+  const PLEDGE_SUMMARY_HIDDEN_EMAILS = [];
   const ROLE_PRIORITY = { none: 0, viewer: 1, editor: 2, admin: 3 };
   const ROLE_LABELS = { viewer: "Viewer", editor: "Editor", admin: "Admin" };
   const HOME_APP_KEY = "home";
@@ -215,10 +216,6 @@
       noAccess.className = "app-card__access-note";
       noAccess.textContent = "No access assigned for this account.";
       card.append(noAccess);
-      const meta = document.createElement("div");
-      meta.className = "app-card__meta";
-      meta.appendChild(renderRoleTag(role));
-      card.appendChild(meta);
       return card;
     }
 
@@ -250,7 +247,6 @@
 
     const meta = document.createElement("div");
     meta.className = "app-card__meta";
-    meta.appendChild(renderRoleTag(role));
     (app.tags || []).forEach((label) => {
       const tag = document.createElement("span");
       tag.className = "tag";
@@ -278,26 +274,20 @@
       return;
     }
     box.classList.remove("hidden");
-    const rows = apps.map((app) => {
-      const role = roleForApp(app.appKey);
-      return `<div class="access-row"><span>${escapeHtml(app.title)}</span><strong class="access-role access-role--${escapeHtml(role || "none")}">${escapeHtml(roleLabel(role))}</strong></div>`;
-    }).join("");
     const warning = homeState.rolesError ? `<div class="access-warning">${escapeHtml(homeState.rolesError)}</div>` : "";
     const changePasswordAction = `<button type="button" class="button secondary access-admin-button" id="homeChangePasswordButton">Change password</button>`;
     const adminAction = isHomeAdmin() ? `<button type="button" class="button secondary access-admin-button" id="homeManageUsersButton">Manage users</button>` : "";
     box.innerHTML = `
-      <div class="access-head">
+      <div class="access-head access-head-compact">
         <div>
           <div class="access-kicker">Signed in</div>
           <div class="access-title">${escapeHtml(displayUserName())}</div>
         </div>
         <div class="access-head-actions">
-          <div class="access-home-role">Home: ${escapeHtml(roleLabel(roleForApp(HOME_APP_KEY)))}</div>
           ${changePasswordAction}
           ${adminAction}
         </div>
       </div>
-      <div class="access-grid">${rows}</div>
       ${warning}
     `;
     box.querySelector("#homeChangePasswordButton")?.addEventListener("click", () => {
@@ -475,8 +465,12 @@
     box.classList.add("hidden");
     box.innerHTML = "";
   }
+  function canSeePledgeSummary() {
+    const email = normalizeEmail(homeState.user?.email || "");
+    return isSignedIn() && !PLEDGE_SUMMARY_HIDDEN_EMAILS.map(normalizeEmail).includes(email);
+  }
   function refreshPrivateHomeSections() {
-    if (!isSignedIn()) {
+    if (!canSeePledgeSummary()) {
       hidePledgeDriveSummary();
       return;
     }
@@ -631,6 +625,7 @@
     const adminUserCloseButton = document.getElementById("homeAdminUserCloseButton");
     const refreshAdminUsersButton = document.getElementById("homeRefreshAdminUsersButton");
     const generateTempPasswordButton = document.getElementById("homeGenerateTempPasswordButton");
+    const copyTempPasswordButton = document.getElementById("homeCopyTempPasswordButton");
     const updateRolesCheckbox = document.getElementById("homeAdminUpdateRoles");
 
     document.querySelectorAll("[data-close-auth-panel]").forEach((button) => {
@@ -774,6 +769,26 @@
       }
       homeState.adminUserError = "";
       homeState.adminUserMessage = "Generated a temporary password. Copy it before sending the form or closing this panel.";
+      renderAdminUserPanel();
+    });
+    if (copyTempPasswordButton) copyTempPasswordButton.addEventListener("click", async () => {
+      const field = document.getElementById("homeAdminTempPassword");
+      const value = String(field?.value || "");
+      if (!value) {
+        homeState.adminUserError = "Generate or enter a temporary password before copying.";
+        homeState.adminUserMessage = "";
+        renderAdminUserPanel();
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+        homeState.adminUserError = "";
+        homeState.adminUserMessage = "Temporary password copied.";
+      } catch (_) {
+        field?.select?.();
+        homeState.adminUserError = "";
+        homeState.adminUserMessage = "Could not copy automatically. The password field is selected so you can copy it.";
+      }
       renderAdminUserPanel();
     });
     if (updateRolesCheckbox) updateRolesCheckbox.addEventListener("change", () => {
@@ -1155,6 +1170,14 @@
     if (today > endKey && today <= endOfWindow) return { show: true, mode: "Post-drive week", endOfWindow };
     return { show: false, mode: "", endOfWindow };
   }
+  function scheduleStatusLabel(schedule = {}) {
+    const today = localTodayKey();
+    const startKey = normalizeText(schedule.startDate);
+    const endKey = normalizeText(schedule.endDate);
+    if (startKey && endKey && today >= startKey && today <= endKey) return "Current fundraiser";
+    if (startKey && today < startKey) return "Upcoming fundraiser";
+    return "Last fundraiser";
+  }
   function sortSchedulesNewestFirst(items = []) {
     return [...items].sort((a, b) => {
       const aKey = `${normalizeText(a.endDate)}|${normalizeText(a.startDate)}|${normalizeText(a.updatedAt || a.createdAt)}`;
@@ -1192,6 +1215,30 @@
   function scheduleGrandTotal(schedule = {}) {
     return scheduleBroadcastTotal(schedule) + (Number(schedule.onlineDollars || 0) || 0) + (Number(schedule.mailDollars || 0) || 0);
   }
+  function scheduleYear(schedule = {}) {
+    const key = normalizeText(schedule.endDate || schedule.startDate);
+    const year = Number(key.slice(0, 4));
+    return Number.isFinite(year) ? year : 0;
+  }
+  function scheduleHasStarted(schedule = {}) {
+    const startKey = normalizeText(schedule.startDate);
+    return Boolean(startKey) && startKey <= localTodayKey();
+  }
+  function summarizeSchedules(schedules = []) {
+    return schedules.reduce((totals, schedule) => {
+      totals.goal += Number(schedule.goalDollars || 0) || 0;
+      totals.totalRaised += scheduleGrandTotal(schedule);
+      totals.pledges += scheduleImportedPledgesTotal(schedule);
+      totals.broadcast += scheduleBroadcastTotal(schedule);
+      totals.nonSpecific += scheduleImportedNonSpecificTotal(schedule);
+      totals.online += Number(schedule.onlineDollars || 0) || 0;
+      totals.mail += Number(schedule.mailDollars || 0) || 0;
+      return totals;
+    }, { goal: 0, totalRaised: 0, pledges: 0, broadcast: 0, nonSpecific: 0, online: 0, mail: 0 });
+  }
+  function summaryFromSchedule(schedule = {}) {
+    return summarizeSchedules(schedule ? [schedule] : []);
+  }
   function goalDifferenceTone(value = 0) {
     const num = Number(value || 0) || 0;
     if (num > 0) return "positive";
@@ -1204,15 +1251,9 @@
     box.classList.remove("hidden");
     box.innerHTML = `<div class="drive-summary-${kind}">${escapeHtml(message)}</div>`;
   }
-  function renderDriveSummary(schedule) {
-    const box = document.getElementById("pledgeDriveSummary");
-    if (!box) return;
-    if (!schedule) { box.classList.add("hidden"); box.innerHTML = ""; return; }
-
-    const windowInfo = scheduleDriveSummaryWindow(schedule);
-    const driveTitle = [windowInfo.mode, schedule.title || "Loaded fundraiser"].filter(Boolean).join(" — ");
-    const goal = Number(schedule.goalDollars || 0) || 0;
-    const totalRaised = scheduleGrandTotal(schedule);
+  function driveSummaryCards(values = {}, options = {}) {
+    const goal = Number(values.goal || 0) || 0;
+    const totalRaised = Number(values.totalRaised || 0) || 0;
     const goalDifference = totalRaised - goal;
     const priorityValues = [
       { label: "Goal", value: formatMoney(goal) },
@@ -1220,11 +1261,11 @@
       { label: "Difference", value: formatMoney(goalDifference), tone: goalDifferenceTone(goalDifference), important: true }
     ];
     const secondaryValues = [
-      { label: "Pledges", value: formatCount(scheduleImportedPledgesTotal(schedule)) },
-      { label: "Broadcast", value: formatMoney(scheduleBroadcastTotal(schedule)) },
-      { label: "Non-Specific", value: formatMoney(scheduleImportedNonSpecificTotal(schedule)) },
-      { label: "Online", value: formatMoney(Number(schedule.onlineDollars || 0) || 0) },
-      { label: "Mail", value: formatMoney(Number(schedule.mailDollars || 0) || 0) }
+      { label: "Pledges", value: formatCount(values.pledges || 0) },
+      { label: "Broadcast", value: formatMoney(values.broadcast || 0) },
+      { label: "Non-Specific", value: formatMoney(values.nonSpecific || 0) },
+      { label: "Online", value: formatMoney(values.online || 0) },
+      { label: "Mail", value: formatMoney(values.mail || 0) }
     ];
     const priorityHtml = priorityValues.map((item) => `
       <div class="drive-summary-priority-card ${item.important ? "important" : ""} ${item.tone ? `goal-difference-card goal-difference-${item.tone}` : ""}">
@@ -1236,44 +1277,71 @@
         <div class="drive-summary-label">${escapeHtml(item.label)}</div>
         <div class="drive-summary-value">${escapeHtml(item.value)}</div>
       </div>`).join("");
-    box.innerHTML = `
-      <div class="drive-summary-head drive-summary-head-priority drive-summary-head-compact">
-        <div class="drive-summary-title-wrap">
-          <div class="drive-summary-kicker">Pledge drive snapshot</div>
-          <div class="drive-summary-title-line drive-summary-title-line-priority">
-            <span class="drive-summary-title">${escapeHtml(driveTitle)}</span>
-          </div>
-        </div>
-        <div class="drive-summary-priority-row drive-summary-priority-row-top">${priorityHtml}</div>
-        <div class="drive-summary-date">${escapeHtml(formatDate(schedule.startDate))} – ${escapeHtml(formatDate(schedule.endDate))}</div>
-      </div>
+    return `
+      <div class="drive-summary-priority-row drive-summary-priority-row-top">${priorityHtml}</div>
       <div class="drive-summary-secondary-grid">${secondaryHtml}</div>`;
+  }
+  function renderDriveSummary(lastSchedule, ytdSchedules = []) {
+    const box = document.getElementById("pledgeDriveSummary");
+    if (!box) return;
+    if (!lastSchedule && !ytdSchedules.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+    const year = new Date().getFullYear();
+    const lastTitle = lastSchedule ? [scheduleStatusLabel(lastSchedule), lastSchedule.title || "Loaded fundraiser"].filter(Boolean).join(" — ") : "Last fundraiser";
+    const lastDate = lastSchedule ? `${formatDate(lastSchedule.startDate)} – ${formatDate(lastSchedule.endDate)}` : "No fundraiser loaded";
+    const lastHtml = lastSchedule ? driveSummaryCards(summaryFromSchedule(lastSchedule)) : `<div class="drive-summary-loading">No fundraiser records found.</div>`;
+    const ytdTotals = summarizeSchedules(ytdSchedules);
+    const ytdDate = ytdSchedules.length ? `${formatCount(ytdSchedules.length)} fundraiser${ytdSchedules.length === 1 ? "" : "s"} included` : "No current-year fundraisers yet";
+    const ytdHtml = ytdSchedules.length ? driveSummaryCards(ytdTotals) : `<div class="drive-summary-loading">No current-year fundraiser totals found yet.</div>`;
+
+    box.innerHTML = `
+      <div class="drive-summary-kicker">Pledge totals</div>
+      <div class="drive-summary-sections">
+        <section class="drive-summary-block" aria-label="Last fundraiser totals">
+          <div class="drive-summary-block-head">
+            <div class="drive-summary-title">${escapeHtml(lastTitle)}</div>
+            <div class="drive-summary-date">${escapeHtml(lastDate)}</div>
+          </div>
+          ${lastHtml}
+        </section>
+        <section class="drive-summary-block" aria-label="Year-to-date fundraiser totals">
+          <div class="drive-summary-block-head">
+            <div class="drive-summary-title">Year to date — ${escapeHtml(String(year))}</div>
+            <div class="drive-summary-date">${escapeHtml(ytdDate)}</div>
+          </div>
+          ${ytdHtml}
+        </section>
+      </div>`;
     box.classList.remove("hidden");
   }
   async function loadPledgeDriveSummary() {
     const box = document.getElementById("pledgeDriveSummary");
     if (!box) return;
-    if (!isSignedIn()) {
+    if (!canSeePledgeSummary()) {
       hidePledgeDriveSummary();
       return;
     }
-    renderDriveSummaryStatus("Checking current pledge drive totals…");
+    renderDriveSummaryStatus("Checking pledge totals…");
     try {
       const cfg = await loadPledgeConfig();
-      if (!isSignedIn()) {
+      if (!canSeePledgeSummary()) {
         hidePledgeDriveSummary();
         return;
       }
       const rows = await restSelect(cfg, "/rest/v1/pledge_fundraiser_schedules?select=*&order=start_date.asc&order=title.asc");
-      if (!isSignedIn()) {
+      if (!canSeePledgeSummary()) {
         hidePledgeDriveSummary();
         return;
       }
       const schedules = sortSchedulesNewestFirst((Array.isArray(rows) ? rows : []).map(normalizeSchedule));
-      renderDriveSummary(schedules.find((schedule) => scheduleDriveSummaryWindow(schedule).show) || null);
+      const started = schedules.filter(scheduleHasStarted);
+      const lastSchedule = started[0] || schedules[0] || null;
+      const currentYear = new Date().getFullYear();
+      const ytdSchedules = schedules.filter((schedule) => scheduleHasStarted(schedule) && scheduleYear(schedule) === currentYear);
+      renderDriveSummary(lastSchedule, sortSchedulesNewestFirst(ytdSchedules));
     } catch (error) {
-      console.warn("WNMU Home pledge drive summary failed.", error);
-      renderDriveSummaryStatus("Pledge drive snapshot could not load here. Open the Pledge Library / Scheduler for the full current view.", "error");
+      console.warn("WNMU Home pledge totals failed.", error);
+      renderDriveSummaryStatus("Pledge totals could not load here. Open the Pledge Library / Scheduler for the full current view.", "error");
     }
   }
 
