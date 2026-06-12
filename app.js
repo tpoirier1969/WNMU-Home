@@ -1,15 +1,20 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.24-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.26-r2026-06-12";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
   const MONTHLY_CHANNEL = "13.1";
   const MONTHLY_PAGE = "index131.v1.4.1.html";
+  const HOME_VERSION_URL = "version.json";
+  const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+  const MODULE_VERSION_STORAGE_PREFIX = "wnmuHomeModuleOpened";
+  const MODULE_RUNNING_VERSION_PREFIX = "wnmuAppRunningVersion";
   const PRIME_START = "19:00";
   const PRIME_END = "23:00";
+  const PRIME_DAY_COUNT = 7;
   const MAX_HIGHLIGHTS = 999;
   const FEATURED_MONTHLY_TAGS = [
     { key: "highlight", label: "Highlight" },
@@ -44,6 +49,9 @@
     adminUsersLoaded: false,
     adminUsersError: "",
     adminUsers: [],
+    homeVersion: { checked: false, latestVersion: "", updateAvailable: false, error: "" },
+    moduleVersions: new Map(),
+    versionCheckTimer: null,
     session: null,
     user: null,
     roles: new Map(),
@@ -51,10 +59,10 @@
   };
 
   const apps = [
-    { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
-    { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
-    { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
-    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
+    { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, versionUrl: `${PROGRAMMING_APP_ROOT}/version.json`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
+    { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
+    { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
+    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
   ];
 
   const adminUserColumns = [
@@ -177,6 +185,145 @@
     link.rel = NEW_TAB_ATTRS.rel;
     return link;
   }
+  function versionStorageKey(appKey) { return `${MODULE_VERSION_STORAGE_PREFIX}:${appKey}`; }
+  function runningVersionStorageKey(appKey) { return `${MODULE_RUNNING_VERSION_PREFIX}:${appKey}`; }
+  function versionFromManifest(manifest = {}) {
+    return normalizeText(manifest.version || manifest.appVersion || manifest.APP_VERSION || manifest.currentVersion || manifest.latestVersion || manifest.buildVersion || "");
+  }
+  function versionParts(value) {
+    const raw = normalizeText(value).replace(/^v/i, "");
+    const matches = raw.match(/\d+/g) || [];
+    return matches.map((part) => Number(part)).filter((part) => Number.isFinite(part));
+  }
+  function compareVersions(a, b) {
+    const left = versionParts(a);
+    const right = versionParts(b);
+    const max = Math.max(left.length, right.length);
+    for (let index = 0; index < max; index += 1) {
+      const l = left[index] || 0;
+      const r = right[index] || 0;
+      if (l > r) return 1;
+      if (l < r) return -1;
+    }
+    return 0;
+  }
+  function isVersionNewer(latest, current) {
+    if (!normalizeText(latest) || !normalizeText(current)) return false;
+    return compareVersions(latest, current) > 0;
+  }
+  function readJsonStorage(key) {
+    try {
+      const raw = window.localStorage?.getItem(key);
+      if (!raw) return null;
+      if (raw.trim().startsWith("{")) return JSON.parse(raw);
+      return { version: raw };
+    } catch (_) {
+      return null;
+    }
+  }
+  function storedModuleVersion(appKey) {
+    const running = readJsonStorage(runningVersionStorageKey(appKey));
+    if (running?.version) return { ...running, source: "running" };
+    const opened = readJsonStorage(versionStorageKey(appKey));
+    if (opened?.version) return { ...opened, source: "opened" };
+    return { version: "", source: "" };
+  }
+  function writeModuleOpenedVersion(app) {
+    const status = homeState.moduleVersions.get(app.appKey) || {};
+    const version = normalizeText(status.latestVersion || status.openedVersion || "");
+    if (!version) return;
+    try {
+      window.localStorage?.setItem(versionStorageKey(app.appKey), JSON.stringify({
+        appKey: app.appKey,
+        title: app.title,
+        version,
+        url: app.url,
+        openedAt: new Date().toISOString()
+      }));
+      homeState.moduleVersions.set(app.appKey, { ...status, openedVersion: version, updateAvailable: false });
+    } catch (_) {}
+  }
+  async function fetchVersionManifest(url) {
+    if (!url) return null;
+    const resource = new URL(url, window.location.href);
+    resource.searchParams.set("_", String(Date.now()));
+    const response = await fetch(resource.toString(), { cache: "no-store" });
+    if (!response.ok) throw new Error(`Version file unavailable (${response.status})`);
+    return response.json();
+  }
+  function renderHomeVersionNotice() {
+    const notice = document.getElementById("homeVersionNotice");
+    if (!notice) return;
+    const state = homeState.homeVersion || {};
+    if (!state.updateAvailable) {
+      notice.classList.add("hidden");
+      notice.innerHTML = "";
+      return;
+    }
+    notice.classList.remove("hidden");
+    notice.innerHTML = `
+      <div>
+        <strong>New WNMU Home version available.</strong>
+        <span>You are running ${escapeHtml(PORTAL_VERSION)}. The current version is ${escapeHtml(state.latestVersion)}. Refresh this page to update.</span>
+      </div>
+      <button type="button" class="button version-refresh-button" id="homeRefreshVersionButton">Refresh now</button>`;
+    notice.querySelector("#homeRefreshVersionButton")?.addEventListener("click", () => {
+      const url = new URL(window.location.href.split("#")[0]);
+      url.searchParams.set("refresh", String(Date.now()));
+      window.location.assign(url.toString());
+    });
+  }
+  function moduleVersionStatus(app) {
+    return homeState.moduleVersions.get(app.appKey) || { checked: false, latestVersion: "", openedVersion: "", updateAvailable: false, error: "" };
+  }
+  async function checkHomeVersion() {
+    try {
+      const manifest = await fetchVersionManifest(HOME_VERSION_URL);
+      const latestVersion = versionFromManifest(manifest);
+      homeState.homeVersion = {
+        checked: true,
+        latestVersion,
+        updateAvailable: isVersionNewer(latestVersion, PORTAL_VERSION),
+        error: ""
+      };
+    } catch (error) {
+      homeState.homeVersion = { checked: true, latestVersion: "", updateAvailable: false, error: error?.message || "Version check failed." };
+    }
+    renderHomeVersionNotice();
+  }
+  async function checkModuleVersions() {
+    await Promise.all(apps.map(async (app) => {
+      const stored = storedModuleVersion(app.appKey);
+      const nextStatus = {
+        checked: true,
+        latestVersion: "",
+        openedVersion: normalizeText(stored.version || ""),
+        source: stored.source || "",
+        updateAvailable: false,
+        error: ""
+      };
+      try {
+        const manifest = await fetchVersionManifest(app.versionUrl);
+        nextStatus.latestVersion = versionFromManifest(manifest);
+        nextStatus.updateAvailable = isVersionNewer(nextStatus.latestVersion, nextStatus.openedVersion);
+      } catch (error) {
+        nextStatus.error = error?.message || "Version check unavailable.";
+      }
+      homeState.moduleVersions.set(app.appKey, nextStatus);
+    }));
+    renderAppGrid();
+  }
+  async function checkVersionUpdates() {
+    await Promise.all([checkHomeVersion(), checkModuleVersions()]);
+  }
+  function startVersionChecks() {
+    void checkVersionUpdates();
+    if (homeState.versionCheckTimer) window.clearInterval(homeState.versionCheckTimer);
+    homeState.versionCheckTimer = window.setInterval(() => void checkVersionUpdates(), VERSION_CHECK_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) void checkVersionUpdates();
+    });
+  }
   function renderRoleTag(role) {
     const normalized = normalizeRole(role);
     const tag = document.createElement("span");
@@ -184,11 +331,25 @@
     tag.textContent = roleLabel(normalized);
     return tag;
   }
+  function moduleVersionLabel(status) {
+    if (status?.latestVersion) return `Published version ${status.latestVersion}`;
+    if (status?.openedVersion) return `Last opened version ${status.openedVersion}`;
+    if (status?.checked && status?.error) return "Version unavailable";
+    return "Checking version…";
+  }
+  function renderModuleVersionLine(app) {
+    const status = moduleVersionStatus(app);
+    const line = document.createElement("div");
+    line.className = `app-version-line${status?.error && !status?.latestVersion ? " app-version-line--warn" : ""}`;
+    line.textContent = moduleVersionLabel(status);
+    return line;
+  }
   function renderAppCard(app) {
     const card = document.createElement("article");
     const signedIn = isSignedIn();
     const role = roleForApp(app.appKey);
     const canOpen = hasAppAccess(app.appKey);
+    const versionStatus = moduleVersionStatus(app);
     card.className = `app-card${canOpen ? "" : " app-card--locked"}`;
     card.style.setProperty("--accent", app.accent);
     card.style.setProperty("--tag-bg", app.tagBg);
@@ -215,7 +376,7 @@
       const noAccess = document.createElement("p");
       noAccess.className = "app-card__access-note";
       noAccess.textContent = "No access assigned for this account.";
-      card.append(noAccess);
+      card.append(noAccess, renderModuleVersionLine(app));
       return card;
     }
 
@@ -231,6 +392,7 @@
     open.href = app.url;
     open.textContent = "Open";
     open.setAttribute("aria-label", `Open ${app.title} in a new tab`);
+    open.addEventListener("click", () => writeModuleOpenedVersion(app));
     actions.appendChild(applyNewTabAttributes(open));
 
     if (app.fallbackUrl) {
@@ -239,11 +401,19 @@
       fallback.href = app.fallbackUrl;
       fallback.textContent = "Open app home";
       fallback.setAttribute("aria-label", `Open ${app.title} home page in a new tab`);
+      fallback.addEventListener("click", () => writeModuleOpenedVersion(app));
       actions.appendChild(applyNewTabAttributes(fallback));
     }
 
     bodyRow.append(description, actions);
-    card.append(bodyRow);
+    card.append(bodyRow, renderModuleVersionLine(app));
+
+    if (versionStatus.updateAvailable) {
+      const warning = document.createElement("div");
+      warning.className = "app-update-warning";
+      warning.textContent = `The current version of this app is newer than the version this browser last opened. Use the Open button here, or refresh any open copy of ${app.title}.`;
+      card.appendChild(warning);
+    }
 
     const meta = document.createElement("div");
     meta.className = "app-card__meta";
@@ -1564,20 +1734,34 @@
     box.classList.remove("hidden");
     box.innerHTML = `<div class="schedule-loading">${escapeHtml(message)}</div>`;
   }
+  function primeDayHeading(index, dateKey) {
+    const dateLabel = formatDateShort(dateKey);
+    if (index === 0) return `Today • ${dateLabel}`;
+    if (index === 1) return `Tomorrow • ${dateLabel}`;
+    return dateLabel;
+  }
+  function renderPrimeDayGroup(day = {}, index = 0) {
+    const label = day.label || primeDayHeading(index, day.dateKey);
+    const empty = day.row
+      ? `No prime time listings are scheduled for ${label}.`
+      : `No 13.1 listings are available for ${label}.`;
+    const listHtml = day.entries?.length ? renderScheduleList(day.entries) : `<div class="schedule-empty schedule-empty-compact">${escapeHtml(empty)}</div>`;
+    return `
+      <section class="schedule-prime-day">
+        <h4>${escapeHtml(label)}</h4>
+        ${listHtml}
+      </section>`;
+  }
   function renderHomeScheduleSummary(payload) {
     const box = document.getElementById("homeScheduleSummary");
     if (!box) return;
     if (!payload) { box.classList.add("hidden"); box.innerHTML = ""; return; }
 
     const highlightLabel = `${formatMonthLabel(payload.todayMonthKey)} and ${formatMonthLabel(payload.nextMonthKey)}`;
-    const todayEmpty = payload.todayRow
-      ? "No prime time listings are scheduled today."
-      : "No 13.1 listings are available for today.";
-    const tomorrowEmpty = payload.tomorrowRow
-      ? "No prime time listings are scheduled tomorrow."
-      : "No 13.1 listings are available for tomorrow.";
-    const todayPrimeHtml = payload.todayPrimeTime.length ? renderScheduleList(payload.todayPrimeTime) : `<div class="schedule-empty">${escapeHtml(todayEmpty)}</div>`;
-    const tomorrowPrimeHtml = payload.tomorrowPrimeTime.length ? renderScheduleList(payload.tomorrowPrimeTime) : `<div class="schedule-empty">${escapeHtml(tomorrowEmpty)}</div>`;
+    const primeDays = Array.isArray(payload.primeDays) ? payload.primeDays : [];
+    const primeDaysHtml = primeDays.length
+      ? primeDays.map((day, index) => renderPrimeDayGroup(day, index)).join("")
+      : `<div class="schedule-empty">No 13.1 listings are available for the next seven days.</div>`;
     const highlightsHtml = payload.highlights.length ? renderScheduleList(payload.highlights, "schedule-list highlights-list") : `<div class="schedule-empty">No monthly highlights are selected for this month or next month.</div>`;
 
     box.innerHTML = `
@@ -1590,13 +1774,9 @@
       </div>
       <div class="schedule-content-grid schedule-content-grid-home">
         <div class="schedule-prime-stack">
-          <section class="schedule-block schedule-block-prime">
-            <h3>Prime time today</h3>
-            ${todayPrimeHtml}
-          </section>
-          <section class="schedule-block schedule-block-prime">
-            <h3>Prime time tomorrow</h3>
-            ${tomorrowPrimeHtml}
+          <section class="schedule-block schedule-block-prime schedule-block-prime-week">
+            <h3>Prime time next 7 days</h3>
+            ${primeDaysHtml}
           </section>
         </div>
         <section class="schedule-block schedule-block-highlights">
@@ -1617,20 +1797,20 @@
         return null;
       });
       const todayKey = localTodayKey();
-      const tomorrowKey = plusDays(todayKey, 1);
+      const primeDayKeys = Array.from({ length: PRIME_DAY_COUNT }, (_, index) => plusDays(todayKey, index));
       const todayMonthKey = monthKeyFromDateKey(todayKey);
-      const tomorrowMonthKey = monthKeyFromDateKey(tomorrowKey);
       const nextHighlightMonthKey = nextMonthKey(todayMonthKey);
+      const neededMonthKeys = [...new Set([...primeDayKeys.map(monthKeyFromDateKey), todayMonthKey, nextHighlightMonthKey].filter(Boolean))];
 
       const monthRows = new Map();
-      for (const monthKey of [todayMonthKey, tomorrowMonthKey, nextHighlightMonthKey].filter(Boolean)) {
+      for (const monthKey of neededMonthKeys) {
         if (!monthRows.has(monthKey)) monthRows.set(monthKey, await getMonthlyScheduleRowOrNull(cfg, monthKey));
       }
 
+      const anyScheduleRow = [...monthRows.values()].some(Boolean);
       const todayRow = monthRows.get(todayMonthKey) || null;
-      const tomorrowRow = monthRows.get(tomorrowMonthKey) || null;
       const nextHighlightRow = monthRows.get(nextHighlightMonthKey) || null;
-      if (!todayRow && !tomorrowRow && !nextHighlightRow) throw new Error("No imported monthly schedule is available.");
+      if (!anyScheduleRow) throw new Error("No imported monthly schedule is available.");
 
       const entriesByMonth = new Map();
       for (const [monthKey, row] of monthRows.entries()) {
@@ -1643,16 +1823,16 @@
       }
 
       const descriptionIndex = await descriptionIndexPromise;
-      const todayEntries = entriesByMonth.get(todayMonthKey) || [];
-      const tomorrowEntries = entriesByMonth.get(tomorrowMonthKey) || [];
-      const todayMarks = sharedMarksByMonth.get(todayMonthKey) || new Map();
-      const tomorrowMarks = sharedMarksByMonth.get(tomorrowMonthKey) || new Map();
-      const todayPrimeTime = todayEntries
-        .filter((entry) => entry.date === todayKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => decorateScheduleEntry(entry, todayMarks, formatTime(entry.time), descriptionIndex));
-      const tomorrowPrimeTime = tomorrowEntries
-        .filter((entry) => entry.date === tomorrowKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
-        .map((entry) => decorateScheduleEntry(entry, tomorrowMarks, formatTime(entry.time), descriptionIndex));
+      const primeDays = primeDayKeys.map((dateKey, index) => {
+        const monthKey = monthKeyFromDateKey(dateKey);
+        const row = monthRows.get(monthKey) || null;
+        const entries = entriesByMonth.get(monthKey) || [];
+        const marks = sharedMarksByMonth.get(monthKey) || new Map();
+        const dayEntries = entries
+          .filter((entry) => entry.date === dateKey && entryOverlapsWindow(entry, PRIME_START, PRIME_END))
+          .map((entry) => decorateScheduleEntry(entry, marks, formatTime(entry.time), descriptionIndex));
+        return { dateKey, label: primeDayHeading(index, dateKey), row, entries: dayEntries };
+      });
 
       const highlightRows = [
         [todayMonthKey, todayRow],
@@ -1670,7 +1850,7 @@
         .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
         .slice(0, MAX_HIGHLIGHTS);
 
-      renderHomeScheduleSummary({ todayRow, tomorrowRow, todayMonthKey, nextMonthKey: nextHighlightMonthKey, todayKey, tomorrowKey, todayPrimeTime, tomorrowPrimeTime, highlights });
+      renderHomeScheduleSummary({ todayRow, todayMonthKey, nextMonthKey: nextHighlightMonthKey, primeDays, highlights });
     } catch (error) {
       console.warn("WNMU Home schedule summary failed.", error);
       renderHomeScheduleSummary(null);
@@ -1681,6 +1861,7 @@
     document.title = `WNMU Home • ${PORTAL_VERSION}`;
     renderHomeShell();
     hidePledgeDriveSummary();
+    startVersionChecks();
     void initHomeAuth();
     void loadHomeScheduleSummary();
   }

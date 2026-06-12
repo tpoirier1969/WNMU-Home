@@ -800,3 +800,112 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
     justify-content:flex-start;
   }
 }
+
+
+/* v1.0.25 version update warnings and 7-day prime time */
+.version-update-banner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:14px;
+  padding:12px 14px;
+  border:2px solid #fb923c;
+  border-radius:18px;
+  background:#fff7ed;
+  color:#7c2d12;
+  box-shadow:0 9px 24px rgba(154,52,18,.12);
+  font-size:.9rem;
+  font-weight:800;
+}
+.version-update-banner.hidden{
+  display:none!important;
+}
+.version-update-banner strong{
+  display:block;
+  color:#b91c1c;
+  font-size:.95rem;
+  margin-bottom:2px;
+}
+.version-update-banner span{
+  display:block;
+  line-height:1.32;
+}
+.version-refresh-button{
+  --accent:#b91c1c;
+  background:#b91c1c;
+  flex:0 0 auto;
+}
+.app-update-warning{
+  padding:8px 10px;
+  border:1px solid #fb7185;
+  border-radius:12px;
+  background:#fff1f2;
+  color:#9f1239;
+  font-size:.78rem;
+  line-height:1.28;
+  font-weight:900;
+}
+.schedule-block-prime-week{
+  display:grid;
+  gap:7px;
+}
+.schedule-prime-day{
+  display:grid;
+  gap:4px;
+  padding-top:7px;
+  border-top:1px solid #e7edf4;
+}
+.schedule-prime-day:first-of-type{
+  border-top:0;
+  padding-top:0;
+}
+.schedule-prime-day h4{
+  margin:0;
+  color:#314154;
+  font-size:.68rem;
+  line-height:1.15;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.schedule-block-prime-week .schedule-list{
+  display:grid;
+  gap:3px;
+}
+.schedule-block-prime-week .schedule-list-item{
+  padding:5px 6px;
+}
+.schedule-empty-compact{
+  padding:5px 6px;
+  font-size:.7rem;
+}
+@media(max-width:620px){
+  .version-update-banner{
+    display:grid;
+  }
+  .version-refresh-button{
+    width:100%;
+  }
+}
+
+
+/* v1.0.26 signed-in module version labels */
+.app-version-line{
+  display:flex;
+  align-items:center;
+  width:max-content;
+  max-width:100%;
+  min-height:22px;
+  padding:3px 8px;
+  border-radius:999px;
+  background:#f1f5f9;
+  color:#475569;
+  font-size:.72rem;
+  font-weight:850;
+  letter-spacing:.015em;
+}
+.app-version-line--warn{
+  background:#fff7ed;
+  color:#9a3412;
+}

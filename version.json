@@ -1,0 +1,6 @@
+{
+  "app": "WNMU Home",
+  "version": "v1.0.26-r2026-06-12",
+  "released": "2026-06-12",
+  "notes": "Adds signed-in module version labels on Home shortcut cards, while keeping version numbers hidden from public view."
+}

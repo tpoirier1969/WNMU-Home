@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WNMU Home</title>
   <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
-  <link rel="stylesheet" href="styles.css?v=v1.0.24-r2026-06-11">
+  <link rel="stylesheet" href="styles.css?v=v1.0.26-r2026-06-12">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -28,10 +28,12 @@
         <button type="button" class="login-placeholder-button hidden" id="homeLogoutButton">Log out</button>
         <div class="version-pill" aria-label="Portal version">
           <span>Portal</span>
-          <strong>v1.0.24-r2026-06-11</strong>
+          <strong>v1.0.26-r2026-06-12</strong>
         </div>
       </div>
     </header>
+
+    <section class="version-update-banner hidden" id="homeVersionNotice" aria-live="assertive" aria-label="WNMU Home update notice"></section>
 
     <section class="home-auth-drawer hidden" id="homeAuthDrawer" aria-label="WNMU Home sign in">
       <form class="home-auth-form" id="homeLoginForm">
@@ -211,6 +213,6 @@
     <section class="schedule-panel hidden" id="homeScheduleSummary" aria-live="polite" aria-label="WNMU 13.1 schedule summary"></section>
   </main>
 
-  <script src="app.js?v=v1.0.24-r2026-06-11"></script>
+  <script src="app.js?v=v1.0.26-r2026-06-12"></script>
 </body>
 </html>
