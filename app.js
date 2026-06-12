@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.29-r2026-06-12";
+  const PORTAL_VERSION = "v1.0.30-r2026-06-12";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -1177,8 +1177,15 @@
     return parseLibraryTitleSeason(title).season;
   }
   function libraryRecordFromRow(row = {}, source = "") {
-    const title = firstField(row, ["title", "program_title", "programTitle", "name"]);
-    const description = firstField(row, ["notes", "program_notes", "programNotes", "description", "summary"]);
+    const title = firstField(row, [
+      "title", "program_title", "programTitle", "program_name", "programName", "program", "name",
+      "series_title", "seriesTitle", "display_title", "displayTitle", "library_title", "libraryTitle",
+      "full_title", "fullTitle", "title_clean", "titleClean"
+    ]);
+    const description = firstField(row, [
+      "notes", "program_notes", "programNotes", "description", "summary", "synopsis", "overview",
+      "long_description", "longDescription", "short_description", "shortDescription", "program_description", "programDescription"
+    ]);
     const rawKey = compactLibraryTitleText(title);
     const stripped = parseLibraryTitleSeason(title);
     const baseKeyWithArticle = compactLibraryTitleText(stripped.title);
@@ -1257,20 +1264,45 @@
     let match = text.match(/\b(?:s|season)\.?\s*0*(\d{1,2})\b/i);
     if (match) return seasonNumberText(match[1]);
 
-    match = text.match(/(?:^|[^0-9])#?([1-9])\d{2}[A-Z]?(?:[^0-9]|$)/i);
+    match = text.match(/\b(?:ep|episode|show|program)\.?\s*#?([1-9])\d{2}[A-Z]?\b/i);
     if (match) return seasonNumberText(match[1]);
 
-    match = text.match(/\b(?:ep|episode|show|program)\.?\s*#?([1-9])\d{2}[A-Z]?\b/i);
+    match = text.match(/(?:^|[^0-9])#?([1-9])\d{2}[A-Z]?(?:[^0-9]|$)/i);
     if (match) return seasonNumberText(match[1]);
 
     return "";
   }
+  function episodeCodeSeasonFromEntryKey(value = "") {
+    const key = normalizeText(value);
+    if (!key) return "";
+    const parts = key.split("__").filter(Boolean);
+    for (let index = parts.length - 1; index >= Math.max(0, parts.length - 3); index -= 1) {
+      const part = parts[index] || "";
+      const match = part.match(/^#?([1-9])\d{2}[a-z]?$/i);
+      if (match) return seasonNumberText(match[1]);
+    }
+    return "";
+  }
+  function scheduleSeasonCandidateStrings(entry = {}) {
+    const out = [];
+    Object.entries(entry || {}).forEach(([key, value]) => {
+      if (!/(episode|program.*code|program.*id|nola|season|entrykey|entry_key|markentry)/i.test(key)) return;
+      if (typeof value === "string" || typeof value === "number") out.push(String(value));
+    });
+    return out;
+  }
   function seasonFromScheduleEntry(entry = {}, rawTitle = "") {
+    const entryKeyCandidates = [entry._markEntryKey, entry._sharedMarkEntryKey, entry.markEntryKey, entry.sharedEntryKey, entry.entryKey, entry.entry_key, entry._entryKey];
+    for (const value of entryKeyCandidates) {
+      const season = episodeCodeSeasonFromEntryKey(value);
+      if (season) return season;
+    }
     const candidates = [
       rawTitle,
       entry.title,
       entry.episode,
       entry.episodeTitle,
+      entry.episode_title,
       entry.episodeNumber,
       entry.episode_number,
       entry.episodeNum,
@@ -1292,7 +1324,8 @@
       entry.programCode,
       entry.program_code,
       entry.programId,
-      entry.program_id
+      entry.program_id,
+      ...scheduleSeasonCandidateStrings(entry)
     ];
     for (const value of candidates) {
       const season = episodeCodeSeasonFromText(value);
@@ -1728,7 +1761,8 @@
   function decorateScheduleEntry(entry, marksMap, timeLabel, descriptionIndex = null) {
     const mark = findMarkForEntry(entry, marksMap);
     const displayTitle = displayTitleForEntry(entry, mark);
-    const libraryMatch = bestLibraryMatchForScheduleTitle(displayTitle, entry, descriptionIndex) || bestLibraryMatchForScheduleTitle(entry.title, entry, descriptionIndex);
+    const matchEntry = { ...entry, _markEntryKey: mark?.__entryKey || "" };
+    const libraryMatch = bestLibraryMatchForScheduleTitle(displayTitle, matchEntry, descriptionIndex) || bestLibraryMatchForScheduleTitle(entry.title, matchEntry, descriptionIndex);
     return {
       ...entry,
       title: displayTitle,
@@ -1745,7 +1779,10 @@
       const rows = await monthlyRestSelect(cfg, `/rest/v1/wnmu_monthly_schedules_shared_marks?select=entry_key,mark_json&channel_code=eq.${encodeURIComponent(MONTHLY_CHANNEL)}&month_key=eq.${encodeURIComponent(monthKey)}&limit=2000`);
       const marks = new Map();
       (Array.isArray(rows) ? rows : []).forEach((row) => {
-        if (row?.entry_key) marks.set(row.entry_key, row.mark_json || {});
+        if (!row?.entry_key) return;
+        const payload = row.mark_json && typeof row.mark_json === "object" ? { ...row.mark_json } : {};
+        payload.__entryKey = row.entry_key;
+        marks.set(row.entry_key, payload);
       });
       return marks;
     } catch (error) {

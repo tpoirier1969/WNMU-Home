@@ -1,6 +1,6 @@
 {
   "app": "WNMU Home",
-  "version": "v1.0.29-r2026-06-12",
+  "version": "v1.0.30-r2026-06-12",
   "released": "2026-06-12",
-  "notes": "Improves Monthly Highlights title-description matching by using episode codes such as 501 to choose the correct season description, and recognizes more season-title formats."
+  "notes": "Improves Monthly Highlights season-description matching by using shared mark entry keys and broader schedule episode-code fields, including cases such as Patience episode #201 matching Patience S. 2."
 }
