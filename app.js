@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.26-r2026-06-12";
+  const PORTAL_VERSION = "v1.0.27-r2026-06-12";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -61,8 +61,8 @@
   const apps = [
     { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, versionUrl: `${PROGRAMMING_APP_ROOT}/version.json`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
-    { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
-    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.72.html`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
+    { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.4.1", accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
+    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.88.html`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.5.88", accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
   ];
 
   const adminUserColumns = [
@@ -294,20 +294,27 @@
   async function checkModuleVersions() {
     await Promise.all(apps.map(async (app) => {
       const stored = storedModuleVersion(app.appKey);
+      const fallbackVersion = normalizeText(app.fallbackVersion || "");
       const nextStatus = {
         checked: true,
-        latestVersion: "",
+        latestVersion: fallbackVersion,
         openedVersion: normalizeText(stored.version || ""),
-        source: stored.source || "",
+        source: stored.source || (fallbackVersion ? "configured" : ""),
         updateAvailable: false,
+        fallbackOnly: Boolean(fallbackVersion),
         error: ""
       };
       try {
         const manifest = await fetchVersionManifest(app.versionUrl);
-        nextStatus.latestVersion = versionFromManifest(manifest);
+        const manifestVersion = versionFromManifest(manifest);
+        if (manifestVersion) {
+          nextStatus.latestVersion = manifestVersion;
+          nextStatus.fallbackOnly = false;
+          nextStatus.source = "manifest";
+        }
         nextStatus.updateAvailable = isVersionNewer(nextStatus.latestVersion, nextStatus.openedVersion);
       } catch (error) {
-        nextStatus.error = error?.message || "Version check unavailable.";
+        if (!fallbackVersion) nextStatus.error = error?.message || "Version check unavailable.";
       }
       homeState.moduleVersions.set(app.appKey, nextStatus);
     }));
@@ -332,6 +339,7 @@
     return tag;
   }
   function moduleVersionLabel(status) {
+    if (status?.latestVersion && status?.fallbackOnly) return `Version ${status.latestVersion}`;
     if (status?.latestVersion) return `Published version ${status.latestVersion}`;
     if (status?.openedVersion) return `Last opened version ${status.openedVersion}`;
     if (status?.checked && status?.error) return "Version unavailable";
@@ -340,7 +348,7 @@
   function renderModuleVersionLine(app) {
     const status = moduleVersionStatus(app);
     const line = document.createElement("div");
-    line.className = `app-version-line${status?.error && !status?.latestVersion ? " app-version-line--warn" : ""}`;
+    line.className = `app-version-line${status?.error && !status?.latestVersion ? " app-version-line--warn" : ""}${status?.fallbackOnly ? " app-version-line--fallback" : ""}`;
     line.textContent = moduleVersionLabel(status);
     return line;
   }

@@ -909,3 +909,25 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
   background:#fff7ed;
   color:#9a3412;
 }
+
+
+/* v1.0.27 monthly version fallbacks and soft blue prime-time block */
+.schedule-block-prime{
+  background:#e4eef8;
+  border-color:rgba(49,95,140,.22);
+}
+.schedule-block-prime .schedule-prime-day{
+  border-top-color:rgba(49,95,140,.18);
+}
+.schedule-block-prime .schedule-list-item{
+  background:rgba(255,255,255,.88);
+  border-color:rgba(49,95,140,.14);
+}
+.schedule-block-prime h3,
+.schedule-block-prime .schedule-prime-day h4{
+  color:#17345f;
+}
+.app-version-line--fallback{
+  background:#f8fafc;
+  color:#64748b;
+}
