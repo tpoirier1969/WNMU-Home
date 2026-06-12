@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.23-r2026-06-11";
+  const PORTAL_VERSION = "v1.0.24-r2026-06-11";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -1530,6 +1530,7 @@
     return marks;
   }
   function renderScheduleList(entries, className = "schedule-list") {
+    const isHighlightsList = String(className || "").includes("highlights-list");
     return `<ul class="${className}">${entries.map((entry) => {
       const tooltip = entry._description ? [entry._libraryTitle || "", entry._description].filter(Boolean).join("\n\n") : "";
       const descriptionAttr = tooltip ? ` title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${entry.title}. ${tooltip}`)}"` : "";
@@ -1537,6 +1538,16 @@
       const tagsHtml = entry._tags?.length ? `<span class="schedule-tag-row-inline">${entry._tags.map((tag) => `<span class="schedule-feature-tag">${escapeHtml(tag)}</span>`).join("")}</span>` : "";
       const metaHtml = entry._meta ? `<span class="schedule-program-meta-text">${escapeHtml(entry._meta)}</span>` : "";
       const combinedMeta = tagsHtml || metaHtml ? `<div class="schedule-program-meta schedule-program-meta-line">${tagsHtml}${metaHtml}</div>` : "";
+      if (isHighlightsList) {
+        return `
+      <li class="schedule-list-item schedule-list-item--highlight">
+        <div class="schedule-highlight-topline">
+          <div class="schedule-time">${escapeHtml(entry._timeLabel)}</div>
+          ${combinedMeta}
+        </div>
+        <div class="${titleClass}"${descriptionAttr}>${escapeHtml(entry.title)}</div>
+      </li>`;
+      }
       return `
       <li class="schedule-list-item">
         <div class="schedule-time">${escapeHtml(entry._timeLabel)}</div>
