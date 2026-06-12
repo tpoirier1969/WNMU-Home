@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.27-r2026-06-12";
+  const PORTAL_VERSION = "v1.0.29-r2026-06-12";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -9,7 +9,7 @@
   const MONTHLY_CHANNEL = "13.1";
   const MONTHLY_PAGE = "index131.v1.4.1.html";
   const HOME_VERSION_URL = "version.json";
-  const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+  const VERSION_CHECK_INTERVAL_MS = 60 * 1000;
   const MODULE_VERSION_STORAGE_PREFIX = "wnmuHomeModuleOpened";
   const MODULE_RUNNING_VERSION_PREFIX = "wnmuAppRunningVersion";
   const PRIME_START = "19:00";
@@ -251,27 +251,32 @@
     if (!response.ok) throw new Error(`Version file unavailable (${response.status})`);
     return response.json();
   }
+  function refreshHomeToLatest() {
+    const url = new URL(window.location.href.split("#")[0]);
+    url.searchParams.set("refresh", String(Date.now()));
+    window.location.replace(url.toString());
+  }
   function renderHomeVersionNotice() {
     const notice = document.getElementById("homeVersionNotice");
     if (!notice) return;
     const state = homeState.homeVersion || {};
     if (!state.updateAvailable) {
+      document.body?.classList.remove("home-update-required");
       notice.classList.add("hidden");
+      notice.classList.remove("version-update-banner--force");
       notice.innerHTML = "";
       return;
     }
+    document.body?.classList.add("home-update-required");
     notice.classList.remove("hidden");
+    notice.classList.add("version-update-banner--force");
     notice.innerHTML = `
       <div>
-        <strong>New WNMU Home version available.</strong>
-        <span>You are running ${escapeHtml(PORTAL_VERSION)}. The current version is ${escapeHtml(state.latestVersion)}. Refresh this page to update.</span>
+        <strong>Refresh required — newer WNMU Home version available.</strong>
+        <span>You are running ${escapeHtml(PORTAL_VERSION)}. The current version is ${escapeHtml(state.latestVersion)}. Use Refresh now so Home loads the latest files.</span>
       </div>
       <button type="button" class="button version-refresh-button" id="homeRefreshVersionButton">Refresh now</button>`;
-    notice.querySelector("#homeRefreshVersionButton")?.addEventListener("click", () => {
-      const url = new URL(window.location.href.split("#")[0]);
-      url.searchParams.set("refresh", String(Date.now()));
-      window.location.assign(url.toString());
-    });
+    notice.querySelector("#homeRefreshVersionButton")?.addEventListener("click", refreshHomeToLatest);
   }
   function moduleVersionStatus(app) {
     return homeState.moduleVersions.get(app.appKey) || { checked: false, latestVersion: "", openedVersion: "", updateAvailable: false, error: "" };
@@ -1124,26 +1129,61 @@
   function stripLeadingArticleFromKey(key = "") {
     return String(key || "").replace(/^(the|a|an)\s+/, "").trim();
   }
-  function stripLibrarySeasonSuffix(value = "") {
+  function seasonNumberText(value) {
+    const raw = normalizeText(value).toLowerCase();
+    if (!raw) return "";
+    if (raw === "x") return "x";
+    const number = Number(raw.replace(/^0+/, ""));
+    return Number.isFinite(number) && number > 0 ? String(number) : "";
+  }
+  function parseLibraryTitleSeason(value = "") {
     const original = normalizeText(value);
-    const match = original.match(/(?:^|[\s:;,.\-–—(])(?:s|season)\.?\s*(\d{1,2}|x)\)?\s*$/i);
-    if (!match) return { title: original, season: "" };
-    const title = original.slice(0, match.index).replace(/[\s:;,.\-–—(]+$/g, "").trim();
-    return { title: title || original, season: String(match[1] || "").toLowerCase() };
+    if (!original) return { title: "", season: "" };
+
+    const patterns = [
+      /(?:^|[\s:;,.\-–—(])(?:s|season)\.?\s*0*(\d{1,2}|x)\)?\s*$/i,
+      /(?:^|[\s:;,.\-–—(])s0*(\d{1,2})\)?\s*$/i,
+      /(?:^|[\s:;,.\-–—(])(?:s|season)\.?\s*0*(\d{1,2}|x)\b.*$/i,
+      /(?:^|[\s:;,.\-–—(])s0*(\d{1,2})\b.*$/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = original.match(pattern);
+      if (!match) continue;
+      const title = original.slice(0, match.index).replace(/[\s:;,.\-–—(]+$/g, "").trim();
+      return { title: title || original, season: seasonNumberText(match[1]) || String(match[1] || "").toLowerCase() };
+    }
+
+    return { title: original, season: "" };
+  }
+  function stripLibrarySeasonSuffix(value = "") {
+    return parseLibraryTitleSeason(value);
   }
   function normalizeLibraryTitleKey(value) {
-    return stripLeadingArticleFromKey(compactLibraryTitleText(stripLibrarySeasonSuffix(value).title));
+    return stripLeadingArticleFromKey(compactLibraryTitleText(parseLibraryTitleSeason(value).title));
   }
   function titleWords(key = "") {
     return String(key || "").split(/\s+/).filter(Boolean);
   }
+  function seasonFromLibraryRow(row = {}, title = "") {
+    const explicit = firstField(row, [
+      "season", "season_number", "seasonNumber", "season_num", "seasonNum",
+      "season_label", "seasonLabel", "series_season", "seriesSeason"
+    ]);
+    if (explicit) {
+      const explicitMatch = normalizeText(explicit).match(/(?:s|season)?\.?\s*0*(\d{1,2}|x)\b/i);
+      if (explicitMatch) return seasonNumberText(explicitMatch[1]) || String(explicitMatch[1] || "").toLowerCase();
+    }
+    return parseLibraryTitleSeason(title).season;
+  }
   function libraryRecordFromRow(row = {}, source = "") {
-    const title = firstField(row, ["title", "program_title", "name"]);
-    const description = firstField(row, ["notes", "program_notes", "description", "summary"]);
+    const title = firstField(row, ["title", "program_title", "programTitle", "name"]);
+    const description = firstField(row, ["notes", "program_notes", "programNotes", "description", "summary"]);
     const rawKey = compactLibraryTitleText(title);
-    const stripped = stripLibrarySeasonSuffix(title);
+    const stripped = parseLibraryTitleSeason(title);
     const baseKeyWithArticle = compactLibraryTitleText(stripped.title);
     const baseKey = stripLeadingArticleFromKey(baseKeyWithArticle);
+    const season = seasonFromLibraryRow(row, title);
     if (!title || !description || !baseKey) return null;
     return {
       source,
@@ -1153,7 +1193,7 @@
       baseKey,
       baseKeyWithArticle,
       words: titleWords(baseKey),
-      season: stripped.season,
+      season,
       description
     };
   }
@@ -1210,27 +1250,53 @@
     });
     return { records, exact, cache: new Map() };
   }
+  function episodeCodeSeasonFromText(value = "") {
+    const text = normalizeText(value);
+    if (!text) return "";
+
+    let match = text.match(/\b(?:s|season)\.?\s*0*(\d{1,2})\b/i);
+    if (match) return seasonNumberText(match[1]);
+
+    match = text.match(/(?:^|[^0-9])#?([1-9])\d{2}[A-Z]?(?:[^0-9]|$)/i);
+    if (match) return seasonNumberText(match[1]);
+
+    match = text.match(/\b(?:ep|episode|show|program)\.?\s*#?([1-9])\d{2}[A-Z]?\b/i);
+    if (match) return seasonNumberText(match[1]);
+
+    return "";
+  }
   function seasonFromScheduleEntry(entry = {}, rawTitle = "") {
     const candidates = [
       rawTitle,
       entry.title,
       entry.episode,
       entry.episodeTitle,
+      entry.episodeNumber,
+      entry.episode_number,
+      entry.episodeNum,
+      entry.episode_num,
+      entry.episodeCode,
+      entry.episode_code,
+      entry.programEpisode,
+      entry.program_episode,
       entry.season,
       entry.seasonNumber,
+      entry.season_number,
       entry.seasonNum,
+      entry.season_num,
       entry.seasonLabel,
+      entry.season_label,
       entry.nola,
       entry.nolaCode,
-      entry.programCode
+      entry.nola_code,
+      entry.programCode,
+      entry.program_code,
+      entry.programId,
+      entry.program_id
     ];
     for (const value of candidates) {
-      const text = normalizeText(value);
-      if (!text) continue;
-      let match = text.match(/\b(?:s|season)\.?\s*(\d{1,2})\b/i);
-      if (match) return String(Number(match[1]));
-      match = text.match(/^#?(\d)(\d{2})(?:\D|$)/);
-      if (match && match[1] !== "0") return String(Number(match[1]));
+      const season = episodeCodeSeasonFromText(value);
+      if (season) return season;
     }
     return "";
   }

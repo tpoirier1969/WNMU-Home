@@ -1,6 +1,6 @@
 {
   "app": "WNMU Home",
-  "version": "v1.0.27-r2026-06-12",
+  "version": "v1.0.29-r2026-06-12",
   "released": "2026-06-12",
-  "notes": "Adds fallback module version labels for Monthly apps and gives the Prime Time block a soft blue background."
+  "notes": "Improves Monthly Highlights title-description matching by using episode codes such as 501 to choose the correct season description, and recognizes more season-title formats."
 }

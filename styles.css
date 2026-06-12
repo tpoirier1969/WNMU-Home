@@ -911,6 +911,32 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 }
 
 
+/* v1.0.28 stronger Home update requirement banner */
+.version-update-banner--force{
+  position:fixed;
+  top:14px;
+  left:14px;
+  right:14px;
+  z-index:9999;
+  max-width:1180px;
+  margin:0 auto;
+  border-color:#b91c1c;
+  background:#fff7ed;
+  box-shadow:0 18px 44px rgba(127,29,29,.22);
+}
+.home-update-required .hero,
+.home-update-required main,
+.home-update-required footer{
+  filter:saturate(.75);
+}
+@media(max-width:720px){
+  .version-update-banner--force{
+    top:8px;
+    left:8px;
+    right:8px;
+  }
+}
+
 /* v1.0.27 monthly version fallbacks and soft blue prime-time block */
 .schedule-block-prime{
   background:#e4eef8;
