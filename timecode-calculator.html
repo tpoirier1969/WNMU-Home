@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>WNMU Timecode Calculator</title>
+  <meta name="theme-color" content="#17345f">
+  <style>
+    *{box-sizing:border-box}
+    :root{color-scheme:light;--bg:#edf2f7;--panel:#fff;--panel-soft:#f7fafc;--text:#1c2530;--muted:#64748b;--border:#d9e2ec;--shadow:0 14px 34px rgba(15,23,42,.10);--blue:#315f8c;--blue-dark:#17345f;--green:#376d5c;--gold:#8a6917;--danger:#b33a3a}
+    body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(49,95,140,.18),transparent 30rem),radial-gradient(circle at bottom right,rgba(55,109,92,.15),transparent 30rem),var(--bg)}
+    .shell{width:min(1120px,calc(100% - 28px));margin:0 auto;padding:18px 0 34px}
+    .hero{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:14px 18px;border:1px solid rgba(217,226,236,.9);border-radius:20px;background:rgba(255,255,255,.9);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+    .brand{display:flex;gap:14px;align-items:center}.logo{width:86px;height:auto;display:block}.kicker{margin:0 0 3px;text-transform:uppercase;letter-spacing:.12em;font-size:.76rem;font-weight:800;color:var(--blue)}h1{margin:0;color:var(--blue-dark);font-size:clamp(1.55rem,3.8vw,2.35rem);line-height:1.05}.hero-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}.button{appearance:none;border:0;border-radius:999px;background:var(--blue);color:#fff;text-decoration:none;font-weight:800;font-size:.92rem;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-shadow:0 8px 16px rgba(49,95,140,.18)}.button:hover{filter:brightness(.96)}.button.secondary{background:#fff;color:var(--blue);border:1px solid rgba(49,95,140,.26);box-shadow:none}.button.gold{background:var(--gold)}.button.danger{background:#fff;color:var(--danger);border:1px solid rgba(179,58,58,.28);box-shadow:none}.version-pill{border:1px solid rgba(49,95,140,.18);background:#f7fbff;border-radius:999px;padding:7px 11px;font-size:.78rem;color:#315f8c}.version-pill strong{color:#17345f}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;margin-top:16px}.panel{background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow);padding:16px}.panel h2{margin:0 0 4px;color:var(--blue-dark);font-size:1.15rem}.panel p{margin:0;color:var(--muted)}.controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:14px}.field{display:grid;gap:5px}.field span{font-size:.78rem;font-weight:800;color:#415167}.field input{border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);padding:10px 11px;font:700 1rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.field input[type="number"]{width:7.5em}.summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.summary-card{border:1px solid rgba(49,95,140,.16);border-radius:16px;background:#f7fbff;padding:12px}.summary-card span{display:block;color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.summary-card strong{display:block;margin-top:3px;color:var(--blue-dark);font:900 1.25rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.table-wrap{margin-top:15px;overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fff}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:10px;border-bottom:1px solid #e5edf5;text-align:left;vertical-align:middle}th{background:#f2f7fc;color:#315f8c;font-size:.76rem;text-transform:uppercase;letter-spacing:.07em}tr:last-child td{border-bottom:0}.label-cell{font-weight:800;color:#17345f;white-space:nowrap}.tc-input{width:100%;border:1px solid var(--border);border-radius:10px;background:#fff;padding:9px 10px;color:var(--text);font:800 .96rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.duration{font:900 .96rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#17345f;white-space:nowrap}.duration.bad{color:#b33a3a}.row-actions{text-align:right}.icon-btn{border:1px solid rgba(100,116,139,.25);background:#fff;color:#64748b;border-radius:10px;padding:7px 9px;cursor:pointer;font-weight:900}.icon-btn:hover{color:#b33a3a;border-color:rgba(179,58,58,.32)}.action-row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px}.hint{font-size:.85rem;color:var(--muted);align-self:center}.quick-panel{background:linear-gradient(180deg,#eef6ff,#fff);border-color:rgba(49,95,140,.24)}.quick-result{margin-top:12px;padding:12px;border-radius:14px;background:#fff;border:1px solid rgba(49,95,140,.14);display:flex;justify-content:space-between;gap:12px;align-items:center}.quick-result span{font-size:.78rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.quick-result strong{font:900 1.1rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--blue-dark)}.help-list{margin:12px 0 0;padding-left:18px;color:#415167}.help-list li{margin:6px 0}.message{min-height:1.2em;margin-top:10px;color:#376d5c;font-weight:800;font-size:.9rem}@media (max-width:900px){.layout{grid-template-columns:1fr}.hero{align-items:flex-start;flex-direction:column}.hero-actions{justify-content:flex-start}.summary-grid{grid-template-columns:1fr 1fr}}@media (max-width:560px){.summary-grid{grid-template-columns:1fr}.controls{align-items:stretch}.field{width:100%}.field input[type="number"]{width:100%}.button{width:100%}.logo{width:74px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand">
+        <img class="logo" src="https://raw.githubusercontent.com/tpoirier1969/WNMU-Programming-library/main/WNMU-TV-logo-head2019.png" alt="WNMU-TV official logo">
+        <div>
+          <p class="kicker">WNMU work tools</p>
+          <h1>Timecode Calculator</h1>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <a class="button secondary" href="index.html">WNMU Home</a>
+        <div class="version-pill"><span>Tool</span> <strong>v1.0.31</strong></div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel" aria-label="Segment timecode calculator">
+        <h2>Segment runtime total</h2>
+        <p>Add show and pledge segments, enter start/end timecodes, and total the runtime.</p>
+        <div class="controls">
+          <label class="field">
+            <span>Frame rate</span>
+            <input type="number" id="fps" value="29.97" step="0.01" min="1">
+          </label>
+          <button type="button" class="button" id="addRow">Add segment</button>
+          <button type="button" class="button secondary" id="copyTotal">Copy total</button>
+          <button type="button" class="button danger" id="clearRows">Clear</button>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-card"><span>Total segments</span><strong id="totalCount">0</strong></div>
+          <div class="summary-card"><span>Total runtime</span><strong id="totalTime">00:00:00;00</strong></div>
+        </div>
+        <div class="table-wrap">
+          <table id="segments">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Start<br>HH:MM:SS;FF</th>
+                <th>End<br>HH:MM:SS;FF</th>
+                <th>Duration</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="action-row">
+          <span class="hint">Tip: type digits only, for example <strong>01020304</strong>, and the field formats it as <strong>01:02:03;04</strong>.</span>
+        </div>
+        <div class="message" id="mainMessage" aria-live="polite"></div>
+      </section>
+
+      <aside class="panel quick-panel" aria-label="Quick single duration calculator">
+        <h2>Quick duration</h2>
+        <p>Use this for one simple start/end calculation.</p>
+        <div class="controls">
+          <label class="field">
+            <span>Start</span>
+            <input type="text" id="quickStart" inputmode="numeric" placeholder="HH:MM:SS;FF">
+          </label>
+          <label class="field">
+            <span>End</span>
+            <input type="text" id="quickEnd" inputmode="numeric" placeholder="HH:MM:SS;FF">
+          </label>
+        </div>
+        <div class="quick-result"><span>Duration</span><strong id="quickDuration">--</strong></div>
+        <ul class="help-list">
+          <li>Default frame rate is 29.97 fps.</li>
+          <li>Durations with missing or backwards timecodes show as <strong>--</strong>.</li>
+          <li>The segment table alternates Show Segment and Pledge Segment labels.</li>
+        </ul>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const fpsInput = document.getElementById("fps");
+      const tbody = document.querySelector("#segments tbody");
+      const totalCount = document.getElementById("totalCount");
+      const totalTime = document.getElementById("totalTime");
+      const addBtn = document.getElementById("addRow");
+      const clearBtn = document.getElementById("clearRows");
+      const copyBtn = document.getElementById("copyTotal");
+      const message = document.getElementById("mainMessage");
+      const quickStart = document.getElementById("quickStart");
+      const quickEnd = document.getElementById("quickEnd");
+      const quickDuration = document.getElementById("quickDuration");
+      let showCount = 1;
+      let pledgeCount = 0;
+      let nextIsPledge = true;
+
+      function fps() { return parseFloat(fpsInput.value) || 29.97; }
+      function setMessage(text) {
+        message.textContent = text || "";
+        if (text) window.setTimeout(() => { if (message.textContent === text) message.textContent = ""; }, 2500);
+      }
+      function maskTimecodeInput(field) {
+        const digits = String(field.value || "").replace(/\D/g, "").slice(0, 8);
+        let out = "";
+        if (digits.length > 0) out += digits.substring(0, Math.min(2, digits.length));
+        if (digits.length > 2) out += ":" + digits.substring(2, Math.min(4, digits.length));
+        if (digits.length > 4) out += ":" + digits.substring(4, Math.min(6, digits.length));
+        if (digits.length > 6) out += ";" + digits.substring(6, Math.min(8, digits.length));
+        field.value = out;
+      }
+      function parseTimecode(tc, frameRate) {
+        const parts = String(tc || "").trim().split(/[:;]/);
+        if (parts.length !== 4) return null;
+        const nums = parts.map((part) => Number.parseInt(part, 10));
+        if (nums.some((num) => !Number.isFinite(num))) return null;
+        const [h, m, s, f] = nums;
+        return Math.round(((h * 3600 + m * 60 + s) * frameRate) + f);
+      }
+      function formatTimecode(frames, frameRate) {
+        const safeFrames = Math.max(0, Number(frames || 0));
+        const secs = Math.floor(safeFrames / frameRate);
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        const f = Math.round(safeFrames - secs * frameRate);
+        const pad = (value) => String(value).padStart(2, "0");
+        return `${pad(h)}:${pad(m)}:${pad(s)};${pad(f)}`;
+      }
+      function updateQuick() {
+        const rate = fps();
+        const start = parseTimecode(quickStart.value, rate);
+        const end = parseTimecode(quickEnd.value, rate);
+        quickDuration.textContent = start === null || end === null || end < start ? "--" : formatTimecode(end - start, rate);
+      }
+      function updateAll() {
+        const rate = fps();
+        let totalFrames = 0;
+        let count = 0;
+        tbody.querySelectorAll("tr").forEach((row) => {
+          const startField = row.querySelector(".start");
+          const endField = row.querySelector(".end");
+          const durationCell = row.querySelector(".duration");
+          const start = parseTimecode(startField.value, rate);
+          const end = parseTimecode(endField.value, rate);
+          if (start === null || end === null || end < start) {
+            durationCell.textContent = "--";
+            durationCell.classList.add("bad");
+            return;
+          }
+          const duration = end - start;
+          durationCell.textContent = formatTimecode(duration, rate);
+          durationCell.classList.remove("bad");
+          totalFrames += duration;
+          count += 1;
+        });
+        totalCount.textContent = count.toLocaleString("en-US");
+        totalTime.textContent = formatTimecode(totalFrames, rate);
+        updateQuick();
+      }
+      function createRow(label) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td class="label-cell">${label}</td>
+          <td><input class="tc-input start" type="text" inputmode="numeric" placeholder="HH:MM:SS;FF"></td>
+          <td><input class="tc-input end" type="text" inputmode="numeric" placeholder="HH:MM:SS;FF"></td>
+          <td class="duration">--</td>
+          <td class="row-actions"><button type="button" class="icon-btn" aria-label="Remove ${label}">×</button></td>
+        `;
+        row.querySelectorAll("input").forEach((field) => {
+          field.addEventListener("input", () => { maskTimecodeInput(field); updateAll(); });
+        });
+        row.querySelector("button").addEventListener("click", () => { row.remove(); updateAll(); });
+        tbody.appendChild(row);
+        return row;
+      }
+      function addSegment() {
+        let row;
+        if (nextIsPledge) {
+          pledgeCount += 1;
+          row = createRow(`Pledge Segment ${pledgeCount}`);
+        } else {
+          showCount += 1;
+          row = createRow(`Show Segment ${showCount}`);
+        }
+        nextIsPledge = !nextIsPledge;
+        updateAll();
+        row.querySelector(".start")?.focus();
+      }
+      function resetRows() {
+        tbody.textContent = "";
+        showCount = 1;
+        pledgeCount = 0;
+        nextIsPledge = true;
+        createRow(`Show Segment ${showCount}`);
+        updateAll();
+      }
+      addBtn.addEventListener("click", addSegment);
+      clearBtn.addEventListener("click", resetRows);
+      copyBtn.addEventListener("click", async () => {
+        const value = totalTime.textContent || "00:00:00;00";
+        try {
+          await navigator.clipboard.writeText(value);
+          setMessage(`Copied ${value}`);
+        } catch (_) {
+          setMessage(`Total: ${value}`);
+        }
+      });
+      fpsInput.addEventListener("input", updateAll);
+      [quickStart, quickEnd].forEach((field) => {
+        field.addEventListener("input", () => { maskTimecodeInput(field); updateQuick(); });
+      });
+      resetRows();
+    });
+  </script>
+</body>
+</html>

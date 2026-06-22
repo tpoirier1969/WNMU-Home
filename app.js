@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.30-r2026-06-12";
+  const PORTAL_VERSION = "v1.0.31-r2026-06-22";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -62,7 +62,7 @@
     { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, versionUrl: `${PROGRAMMING_APP_ROOT}/version.json`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
     { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.4.1", accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
-    { appKey: "monthly_sales", title: "Monthly Sales View", description: "Monthly schedule grouped for sales categories.", url: `${MONTHLY_APP_ROOT}/sales-export.v1.5.88.html`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.5.88", accent: "#7a612a", tagBg: "#f5ecd4", tagText: "#7a612a", tags: [] }
+    { appKey: "timecode_calculator", title: "Timecode Calculator", description: "Calculate show and pledge segment runtimes from timecode in a WNMU-style work page.", url: "timecode-calculator.html", versionUrl: HOME_VERSION_URL, fallbackVersion: PORTAL_VERSION, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [], signedInAccess: true, quickTool: "timecode" }
   ];
 
   const adminUserColumns = [
@@ -153,7 +153,12 @@
   function roleLabel(role) { return ROLE_LABELS[normalizeRole(role)] || "No access"; }
   function isSignedIn() { return Boolean(homeState.user?.email); }
   function roleForApp(appKey) { return normalizeRole(homeState.roles.get(appKey)); }
-  function hasAppAccess(appKey) { return isSignedIn() && roleRank(roleForApp(appKey)) >= ROLE_PRIORITY.viewer; }
+  function hasAppAccess(appKey) {
+    if (!isSignedIn()) return false;
+    const app = apps.find((item) => item.appKey === appKey);
+    if (app?.signedInAccess) return true;
+    return roleRank(roleForApp(appKey)) >= ROLE_PRIORITY.viewer;
+  }
   function isHomeAdmin() { return isSignedIn() && roleRank(roleForApp(HOME_APP_KEY)) >= ROLE_PRIORITY.admin; }
   function setRole(appKey, role) {
     const normalized = normalizeRole(role);
@@ -357,6 +362,65 @@
     line.textContent = moduleVersionLabel(status);
     return line;
   }
+
+  function quickTimecodeMask(field) {
+    const digits = String(field.value || "").replace(/\D/g, "").slice(0, 8);
+    let out = "";
+    if (digits.length > 0) out += digits.substring(0, Math.min(2, digits.length));
+    if (digits.length > 2) out += ":" + digits.substring(2, Math.min(4, digits.length));
+    if (digits.length > 4) out += ":" + digits.substring(4, Math.min(6, digits.length));
+    if (digits.length > 6) out += ";" + digits.substring(6, Math.min(8, digits.length));
+    field.value = out;
+  }
+  function quickParseTimecode(value, fps = 29.97) {
+    const parts = String(value || "").trim().split(/[:;]/);
+    if (parts.length !== 4) return null;
+    const nums = parts.map((part) => Number.parseInt(part, 10));
+    if (nums.some((num) => !Number.isFinite(num))) return null;
+    const [hours, minutes, seconds, frames] = nums;
+    return Math.round(((hours * 3600 + minutes * 60 + seconds) * fps) + frames);
+  }
+  function quickFormatTimecode(frames, fps = 29.97) {
+    const safeFrames = Math.max(0, Number(frames || 0));
+    const wholeSeconds = Math.floor(safeFrames / fps);
+    const hours = Math.floor(wholeSeconds / 3600);
+    const minutes = Math.floor((wholeSeconds % 3600) / 60);
+    const seconds = wholeSeconds % 60;
+    const frame = Math.round(safeFrames - wholeSeconds * fps);
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)};${pad(frame)}`;
+  }
+  function createQuickTimecodeWidget() {
+    const box = document.createElement("div");
+    box.className = "quick-timecode-widget";
+    box.innerHTML = `
+      <div class="quick-timecode-title">Quick duration</div>
+      <div class="quick-timecode-fields">
+        <label><span>Start</span><input type="text" inputmode="numeric" placeholder="HH:MM:SS;FF" aria-label="Quick timecode start"></label>
+        <label><span>End</span><input type="text" inputmode="numeric" placeholder="HH:MM:SS;FF" aria-label="Quick timecode end"></label>
+      </div>
+      <div class="quick-timecode-result"><span>Duration</span><strong>--</strong></div>
+    `;
+    const fields = Array.from(box.querySelectorAll("input"));
+    const result = box.querySelector(".quick-timecode-result strong");
+    const update = () => {
+      const start = quickParseTimecode(fields[0]?.value);
+      const end = quickParseTimecode(fields[1]?.value);
+      if (start === null || end === null || end < start) {
+        result.textContent = "--";
+        return;
+      }
+      result.textContent = quickFormatTimecode(end - start);
+    };
+    fields.forEach((field) => {
+      field.addEventListener("input", () => {
+        quickTimecodeMask(field);
+        update();
+      });
+    });
+    return box;
+  }
+
   function renderAppCard(app) {
     const card = document.createElement("article");
     const signedIn = isSignedIn();
@@ -420,6 +484,8 @@
 
     bodyRow.append(description, actions);
     card.append(bodyRow, renderModuleVersionLine(app));
+
+    if (app.quickTool === "timecode") card.appendChild(createQuickTimecodeWidget());
 
     if (versionStatus.updateAvailable) {
       const warning = document.createElement("div");
