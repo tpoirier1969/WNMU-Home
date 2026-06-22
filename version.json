@@ -1,6 +1,5 @@
 {
   "app": "WNMU Home",
-  "version": "v1.0.31-r2026-06-22",
-  "released": "2026-06-22",
-  "notes": "Adds a WNMU-style standalone Timecode Calculator, links it from Home in place of the Monthly Sales View shortcut, and includes a compact quick-duration calculator on the Home shortcut card for signed-in users."
+  "version": "v1.0.32-r2026-06-22",
+  "updated_at": "2026-06-22"
 }

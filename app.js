@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.31-r2026-06-22";
+  const PORTAL_VERSION = "v1.0.32-r2026-06-22";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -62,7 +62,7 @@
     { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, versionUrl: `${PROGRAMMING_APP_ROOT}/version.json`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
     { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.4.1", accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
-    { appKey: "timecode_calculator", title: "Timecode Calculator", description: "Calculate show and pledge segment runtimes from timecode in a WNMU-style work page.", url: "timecode-calculator.html", versionUrl: HOME_VERSION_URL, fallbackVersion: PORTAL_VERSION, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [], signedInAccess: true, quickTool: "timecode" }
+    { appKey: "timecode_calculator", title: "Timecode Calculator", description: "Calculator based on timecode and segmenting pledge programs.", url: "timecode-calculator.html", versionUrl: HOME_VERSION_URL, fallbackVersion: PORTAL_VERSION, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [], signedInAccess: true, quickTool: "timecode" }
   ];
 
   const adminUserColumns = [

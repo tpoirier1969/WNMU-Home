@@ -968,3 +968,21 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
 .quick-timecode-result span{font-weight:800;color:#64748b}
 .quick-timecode-result strong{font:800 .95rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#17345f}
 @media (max-width:680px){.quick-timecode-fields{grid-template-columns:1fr}}
+
+
+/* v1.0.32 app-card polish */
+.app-version-line{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:fit-content;
+  max-width:100%;
+  min-height:32px;
+  padding:7px 12px;
+  border-radius:999px;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.app-card__body-row p{
+  max-width:22ch;
+}
