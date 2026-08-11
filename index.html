@@ -4,13 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WNMU Home</title>
-  <meta name="description" content="Home portal for WNMU programming, pledge, and monthly schedule tools.">
+  <meta name="description" content="Home portal for WNMU programming, pledge, monthly schedule, timecode, and production tools.">
   <link rel="stylesheet" href="styles.css?v=v1.0.32-r2026-06-22">
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#17345f">
+  <style>
+    .app-launcher-shell {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .app-launcher-shell > .app-grid {
+      display: contents;
+      margin: 0;
+    }
+    .app-launcher-shell .app-grid > .app-card:nth-child(-n+3) {
+      grid-column: span 2;
+    }
+    .app-launcher-shell .app-grid > .app-card:nth-child(4),
+    .app-launcher-shell > .production-countdown-card {
+      grid-column: span 3;
+    }
+    .production-countdown-card {
+      --accent: #9b3f45;
+      --tag-bg: #f7e8e9;
+      --tag-text: #8b343a;
+    }
+    .production-countdown-card .app-card__meta {
+      margin-top: auto;
+    }
+    @media (max-width: 980px) {
+      .app-launcher-shell {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .app-launcher-shell .app-grid > .app-card:nth-child(-n+4),
+      .app-launcher-shell > .production-countdown-card {
+        grid-column: auto;
+      }
+    }
+    @media (max-width: 760px) {
+      .app-launcher-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <main class="portal-shell">
@@ -104,8 +145,23 @@
       <div class="home-auth-message" id="homeAuthMessage"></div>
     </section>
 
-    <section class="app-grid" data-app-grid aria-label="WNMU apps">
-      <noscript><p class="noscript-warning">JavaScript is needed to build the app launcher buttons.</p></noscript>
+    <section class="app-launcher-shell" aria-label="WNMU applications and production tools">
+      <section class="app-grid" data-app-grid aria-label="WNMU apps">
+        <noscript><p class="noscript-warning">JavaScript is needed to build the app launcher buttons.</p></noscript>
+      </section>
+
+      <article class="app-card production-countdown-card">
+        <h2>Production Countdown</h2>
+        <div class="app-card__body-row">
+          <p>Control-room-to-studio countdown cues with preset and custom timers, fullscreen display, and overtime tracking.</p>
+          <div class="app-actions">
+            <a class="button" href="https://tpoirier1969.github.io/Countdown/" target="_blank" rel="noopener noreferrer" aria-label="Open Production Countdown in a new tab">Open</a>
+          </div>
+        </div>
+        <div class="app-card__meta">
+          <span class="tag">Production tool</span>
+        </div>
+      </article>
     </section>
 
     <section class="access-panel hidden" id="homeAccessPanel" aria-live="polite" aria-label="Signed-in module access"></section>
