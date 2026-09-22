@@ -6,7 +6,7 @@ type RoleMap = Record<string, Role | "" | null | undefined>;
 
 const ROLE_TABLE_NAME = "wnmu_app_user_roles";
 const VALID_ROLES = new Set<Role>(["viewer", "editor", "admin"]);
-const VALID_APP_KEYS = new Set(["home", "programming_library", "pledge_library", "monthly_schedules", "monthly_sales"]);
+const VALID_APP_KEYS = new Set(["home", "programming_library", "pledge_library", "monthly_schedules", "monthly_sales", "wnmufm_analytics"]);
 const DEFAULT_ALLOWED_ORIGINS = "https://tpoirier1969.github.io,http://localhost:3000,http://127.0.0.1:5500";
 
 function env(name: string): string {
