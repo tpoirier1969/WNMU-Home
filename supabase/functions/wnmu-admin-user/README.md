@@ -26,3 +26,7 @@ Allowed login IDs:
 
 - `@nmu.edu`
 - `@local.wnmu` internal usernames, such as `student@local.wnmu`
+
+Supported module key added for FM staff access:
+
+- `wnmufm_analytics` — WNMU-FM Audience Analytics

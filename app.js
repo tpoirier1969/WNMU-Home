@@ -1,11 +1,12 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.32-r2026-06-22";
+  const PORTAL_VERSION = "v1.0.33-r2026-09-22";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
   const MONTHLY_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-monthly-schedules`;
+  const FM_ANALYTICS_ROOT = "https://wnmufm.pages.dev";
   const MONTHLY_CHANNEL = "13.1";
   const MONTHLY_PAGE = "index131.v1.4.1.html";
   const HOME_VERSION_URL = "version.json";
@@ -62,6 +63,7 @@
     { appKey: "programming_library", title: "Programming Library", description: "Program titles, rights, topics, and reference data.", url: `${OWNER_PAGES_ROOT}/WNMU-Programming-library/`, versionUrl: `${PROGRAMMING_APP_ROOT}/version.json`, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [] },
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
     { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.4.1", accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
+    { appKey: "wnmufm_analytics", title: "FM Audience Analytics", description: "WNMU-FM audience trends, NPR benchmarks, digital listening, website, and on-demand analytics.", url: `${FM_ANALYTICS_ROOT}/`, versionUrl: `${FM_ANALYTICS_ROOT}/src/version.js`, accent: "#177da2", tagBg: "#e0f3fa", tagText: "#176684", tags: ["FM"] },
     { appKey: "timecode_calculator", title: "Timecode Calculator", description: "Calculator based on timecode and segmenting pledge programs.", url: "timecode-calculator.html", versionUrl: HOME_VERSION_URL, fallbackVersion: PORTAL_VERSION, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [], signedInAccess: true, quickTool: "timecode" }
   ];
 
@@ -70,7 +72,8 @@
     { appKey: "programming_library", label: "Programming" },
     { appKey: "pledge_library", label: "Pledge" },
     { appKey: "monthly_schedules", label: "Schedules" },
-    { appKey: "monthly_sales", label: "Sales" }
+    { appKey: "monthly_sales", label: "Sales" },
+    { appKey: "wnmufm_analytics", label: "FM Analytics" }
   ];
 
   function escapeHtml(value) {
@@ -254,7 +257,14 @@
     resource.searchParams.set("_", String(Date.now()));
     const response = await fetch(resource.toString(), { cache: "no-store" });
     if (!response.ok) throw new Error(`Version file unavailable (${response.status})`);
-    return response.json();
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      const moduleVersion = text.match(/APP_VERSION\s*=\s*["']([^"']+)["']/);
+      if (moduleVersion?.[1]) return { version: moduleVersion[1] };
+      throw new Error("Version file format is not recognized.");
+    }
   }
   function refreshHomeToLatest() {
     const url = new URL(window.location.href.split("#")[0]);
@@ -671,7 +681,8 @@
       programming_library: normalizeRole(document.getElementById("homeAdminRoleProgramming")?.value || ""),
       pledge_library: normalizeRole(document.getElementById("homeAdminRolePledge")?.value || ""),
       monthly_schedules: normalizeRole(document.getElementById("homeAdminRoleSchedules")?.value || ""),
-      monthly_sales: normalizeRole(document.getElementById("homeAdminRoleSales")?.value || "")
+      monthly_sales: normalizeRole(document.getElementById("homeAdminRoleSales")?.value || ""),
+      wnmufm_analytics: normalizeRole(document.getElementById("homeAdminRoleFmAnalytics")?.value || "")
     };
   }
   async function friendlyFunctionError(error) {
