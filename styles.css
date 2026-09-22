@@ -110,6 +110,7 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
   text-transform:none;
   letter-spacing:0;
   white-space:nowrap;
+  align-self:end;
 }
 @media(max-width:1040px){
   .drive-summary-head-compact{
@@ -978,6 +979,7 @@ h1{margin:0;font-size:clamp(2rem,4vw,3.8rem);line-height:.95;letter-spacing:-.06
   width:fit-content;
   max-width:100%;
   min-height:32px;
+  height:32px;
   padding:7px 12px;
   border-radius:999px;
   line-height:1.2;
