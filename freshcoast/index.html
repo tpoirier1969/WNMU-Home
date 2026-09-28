@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#08131c">
 <title>Fresh Coast Viewer • WNMU-TV</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20260928-7">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <script>
 (async function(){
@@ -41,7 +41,7 @@
     <label class="viewer-field">Viewer name<input id="viewerName" autocomplete="name" placeholder="Your name"></label>
     <div class="home-actions">
       <button id="myBlocksBtn" class="primary">My assigned blocks</button>
-      <button id="allBlocksBtn" class="secondary">All film blocks</button>
+      <button id="allBlocksBtn" class="secondary">All film blocks</button>\n      <button id="resultsBtn" class="secondary">Review My Results</button>
     </div>
     <div id="homeStatus" class="home-status"></div>
   </section>
@@ -65,10 +65,23 @@
     <main id="filmList" class="film-list"></main>
   </section>
 
+  <section id="resultsView" class="dark-view hidden">
+    <header class="dark-header">
+      <button class="icon-button" data-home aria-label="Home">‹</button>
+      <div><div class="mini-label">Fresh Coast 2026</div><h2>My Results</h2></div>
+      <button id="refreshResults" class="sync-button compact">Refresh</button>
+    </header>
+    <div class="results-toolbar">
+      <a class="secondary result-link" href="https://docs.google.com/spreadsheets/d/1q5pghtLw5Eo5lPZGJSaZf_0dTXQ1ZCfsTRb7ddaZNes/edit#gid=1720260915" target="_blank" rel="noopener">Open all viewer results</a>
+    </div>
+    <div id="resultsStatus" class="sync-banner"></div>
+    <main id="resultsList" class="results-list"></main>
+  </section>
+
   <dialog id="authDialog">
     <form class="auth-card" id="authForm">
-      <h3>Sign in to sync</h3>
-      <p>Your notes remain on this phone until you sign in and press Update Spreadsheet.</p>
+      <h3>Sign in</h3>
+      <p>Sign in to sync notes, share contact details, or review synced results.</p>
       <label>Email<input id="authEmail" type="email" autocomplete="username" required></label>
       <label>Password<input id="authPassword" type="password" autocomplete="current-password" required></label>
       <div id="authError" class="auth-error"></div>
@@ -77,7 +90,7 @@
   </dialog>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
-<script src="data.js?v=20260928-5"></script>
-<script src="app.js?v=20260928-5"></script>
+<script src="data.js?v=20260928-7"></script>
+<script src="app.js?v=20260928-7"></script>
 </body>
 </html>
