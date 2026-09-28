@@ -14,7 +14,17 @@ function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
 function blankRecord(entry,block){return{feedbackId:crypto.randomUUID(),sessionId:entry.sessionId,filmId:entry.filmId,title:entry.title,block:block.block,date:block.date,start:block.start,venue:block.venue,viewer:viewer(),swearing:false,nudity:false,fun:false,audienceLovedIt:false,talkedToFilmmaker:false,underwritingRisks:false,musicRisks:false,broadcastInterest:null,notes:"",dirty:true,updatedAt:new Date().toISOString()}}
 function getRecord(entry,block){const k=keyFor(entry.sessionId,entry.filmId);if(!feedback[k])feedback[k]=blankRecord(entry,block);feedback[k].viewer=viewer();return feedback[k]}
 function show(id){["homeView","blocksView","blockView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
-function fmtDate(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
+function parseDate(d){
+ const s=String(d||"").trim();
+ let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+ if(m){const dt=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),12,0,0);return Number.isNaN(dt.getTime())?null:dt}
+ m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ if(m){const dt=new Date(Number(m[3]),Number(m[1])-1,Number(m[2]),12,0,0);return Number.isNaN(dt.getTime())?null:dt}
+ const dt=new Date(s);return Number.isNaN(dt.getTime())?null:dt
+}
+function fmtDate(d){const dt=parseDate(d);return dt?dt.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"}):String(d||"Date unavailable")}
+function dateSortValue(d){const dt=parseDate(d);return dt?dt.getTime():0}
+function toISODate(d){const dt=parseDate(d);if(!dt)return null;return [dt.getFullYear(),String(dt.getMonth()+1).padStart(2,"0"),String(dt.getDate()).padStart(2,"0")].join("-")}
 function fmtTime(t){const [h,m]=String(t).split(":").map(Number);return new Date(2026,0,1,h,m).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
 function assignedToMe(b){return b.assigned&&b.assigned.toLowerCase()===viewer().toLowerCase()}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
@@ -22,7 +32,7 @@ function renderBlocks(filter=currentFilter){
  currentFilter=filter;$("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
  const list=$("blocksList");list.innerHTML="";
  let arr=DATA.blocks.filter(b=>filter!=="mine"||assignedToMe(b));
- arr.sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)||a.block.localeCompare(b.block));
+ arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||a.start.localeCompare(b.start)||a.block.localeCompare(b.block));
  let last="";
  for(const b of arr){if(b.date!==last){const h=document.createElement("div");h.className="day-heading";h.textContent=fmtDate(b.date);list.appendChild(h);last=b.date}
   const card=document.createElement("button");card.className="block-card"+(assignedToMe(b)?" mine":"");
@@ -55,7 +65,7 @@ async function syncNow(){
  if(!navigator.onLine){banner("Offline. Your notes are safe on this phone.");return}
  const rows=pending();if(!rows.length){banner("Nothing waiting to sync.");return}
  const session=await requireSession();if(!session)return;
- const payload=rows.map(r=>({feedback_id:r.feedbackId,user_id:session.user.id,viewer:r.viewer||viewer(),session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,screening_date:r.date||null,screening_start:r.start||null,venue:r.venue||"",swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest||null,notes:r.notes||"",client_updated_at:r.updatedAt||new Date().toISOString(),updated_at:new Date().toISOString()}));
+ const payload=rows.map(r=>({feedback_id:r.feedbackId,user_id:session.user.id,viewer:r.viewer||viewer(),session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,screening_date:toISODate(r.date),screening_start:r.start||null,venue:r.venue||"",swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest||null,notes:r.notes||"",client_updated_at:r.updatedAt||new Date().toISOString(),updated_at:new Date().toISOString()}));
  banner("Updating spreadsheet…");
  const {error}=await supabase.from("fc_feedback").upsert(payload,{onConflict:"feedback_id"});
  if(error){banner("Sync failed: "+error.message,true);return}
