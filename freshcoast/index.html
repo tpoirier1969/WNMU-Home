@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08131c">
+<title>Fresh Coast Viewer • WNMU-TV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+</head>
+<body>
+<div id="app">
+  <section id="homeView" class="home-view">
+    <div class="brand-lockup">
+      <div class="brand fresh-brand">
+        <img src="https://freshcoastfilm.com/favicon.ico" alt="" class="fresh-logo" onerror="this.style.display='none'">
+        <div><div class="eyebrow">Fresh Coast Film Festival</div><div class="fresh-wordmark">FRESH COAST</div></div>
+      </div>
+      <div class="plus">×</div>
+      <div class="brand wnmu-brand">
+        <img src="https://image.pbs.org/stations/wnmu-white-cobranded-logo-dVkUZSD.png" alt="WNMU-TV PBS">
+      </div>
+    </div>
+    <h1>Film Viewer</h1>
+    <p class="home-copy">Offline-first notes for WNMU’s Fresh Coast coverage. Pick a block, tap through the films, and sync when the signal comes back.</p>
+    <label class="viewer-field">Viewer name<input id="viewerName" autocomplete="name" placeholder="Your name"></label>
+    <div class="home-actions">
+      <button id="myBlocksBtn" class="primary">My assigned blocks</button>
+      <button id="allBlocksBtn" class="secondary">All film blocks</button>
+    </div>
+    <div id="homeStatus" class="home-status"></div>
+  </section>
+
+  <section id="blocksView" class="dark-view hidden">
+    <header class="dark-header">
+      <button class="icon-button" data-home aria-label="Home">‹</button>
+      <div><div class="mini-label">Fresh Coast 2026</div><h2 id="blocksTitle">Film blocks</h2></div>
+      <button id="syncButton" class="sync-button"><span id="syncDot"></span><span id="syncText">Update Spreadsheet</span></button>
+    </header>
+    <div id="syncBanner" class="sync-banner"></div>
+    <main id="blocksList" class="blocks-list"></main>
+  </section>
+
+  <section id="blockView" class="dark-view hidden">
+    <header class="dark-header">
+      <button class="icon-button" id="backBlocks" aria-label="Back">‹</button>
+      <div class="header-copy"><div id="blockMeta" class="mini-label"></div><h2 id="blockTitle"></h2><div id="blockVenue" class="subtle"></div></div>
+      <button id="syncButton2" class="sync-button compact"><span class="sync-dot-copy"></span><span class="sync-text-copy">Update</span></button>
+    </header>
+    <main id="filmList" class="film-list"></main>
+  </section>
+
+  <dialog id="authDialog">
+    <form class="auth-card" id="authForm">
+      <h3>Sign in to sync</h3>
+      <p>Your notes remain on this phone until you sign in and press Update Spreadsheet.</p>
+      <label>Email<input id="authEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="authPassword" type="password" autocomplete="current-password" required></label>
+      <div id="authError" class="auth-error"></div>
+      <div class="dialog-actions"><button type="button" id="authCancel" class="secondary">Cancel</button><button type="submit" id="authSubmit" class="primary">Sign in & sync</button></div>
+    </form>
+  </dialog>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
