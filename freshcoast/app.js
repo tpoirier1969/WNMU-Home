@@ -16,7 +16,7 @@ function isTod(){return viewer().toLowerCase()==="tod"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
 function blankRecord(entry,block){return{feedbackId:crypto.randomUUID(),sessionId:entry.sessionId,filmId:entry.filmId,title:entry.title,block:block.block,date:block.date,start:block.start,venue:block.venue,viewer:viewer(),swearing:false,nudity:false,fun:false,audienceLovedIt:false,talkedToFilmmaker:false,underwritingRisks:false,musicRisks:false,broadcastInterest:null,notes:"",dirty:false,updatedAt:new Date().toISOString()}}
 function getRecord(entry,block){const k=keyFor(entry.sessionId,entry.filmId);const rec=feedback[k]||blankRecord(entry,block);rec.viewer=viewer();return rec}
-function getContact(entry){return contacts[entry.filmId]||{filmId:entry.filmId,title:entry.title,email:"",phone:"",dirty:false}}
+function getContact(entry){return contacts[entry.filmId]||{filmId:entry.filmId,title:entry.title,name:"",email:"",phone:"",dirty:false}}
 function show(id){["homeView","blocksView","blockView","resultsView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
 function parseDate(d){
  const s=String(d||"").trim();
@@ -54,10 +54,11 @@ function renderFilms(){
   const checksHtml=checks.map(([k,l])=>'<label class="check-pill"><input type="checkbox" data-field="'+k+'" '+(rec[k]?"checked":"")+'> <span>'+l+'</span></label>').join("");
   const buttons=[1,2,3].map(n=>'<button type="button" class="interest-button '+(rec.broadcastInterest===n?"active":"")+'" data-interest="'+n+'">'+n+'</button>').join("");
   const pendingHere=rec.dirty||contact.dirty;
-  card.innerHTML='<h3>'+(i+1)+'. '+esc(entry.title)+'</h3><div class="film-meta">'+(film.runtime?film.runtime+' min • ':'')+esc(film.director||"")+'</div>'+(film.flags?'<div class="flags">'+esc(film.flags)+'</div>':'')+(film.description?'<p class="film-desc">'+esc(film.description)+'</p>':'')+'<div class="contact-section"><div class="section-title">Contact</div><div class="contact-grid"><label>Email<input type="email" class="contact-email" value="'+esc(contact.email||"")+'" placeholder="filmmaker@example.com"></label><label>Phone<input type="tel" class="contact-phone" value="'+esc(contact.phone||"")+'" placeholder="Phone"></label></div></div><div class="check-grid">'+checksHtml+'</div><div class="interest-row"><span>Broadcast interest</span>'+buttons+'</div><textarea class="notes" placeholder="Notes">'+esc(rec.notes||"")+'</textarea><div class="save-state">'+(pendingHere?"Saved on phone • waiting to sync":(feedback[keyFor(entry.sessionId,entry.filmId)]?"Synced":"Not yet rated"))+'</div>';
+  card.innerHTML='<h3>'+(i+1)+'. '+esc(entry.title)+'</h3><div class="film-meta">'+(film.runtime?film.runtime+' min • ':'')+esc(film.director||"")+'</div>'+(film.flags?'<div class="flags">'+esc(film.flags)+'</div>':'')+(film.description?'<p class="film-desc">'+esc(film.description)+'</p>':'')+'<div class="contact-section"><div class="section-title">Contact</div><div class="contact-grid"><label class="contact-name-wrap">Name<input type="text" class="contact-name" value="'+esc(contact.name||"")+'" placeholder="Contact name"></label><label>Email<input type="email" class="contact-email" value="'+esc(contact.email||"")+'" placeholder="filmmaker@example.com"></label><label>Phone<input type="tel" class="contact-phone" value="'+esc(contact.phone||"")+'" placeholder="Phone"></label></div></div><div class="check-grid">'+checksHtml+'</div><div class="interest-row"><span>Broadcast interest</span>'+buttons+'</div><textarea class="notes" placeholder="Notes">'+esc(rec.notes||"")+'</textarea><div class="save-state">'+(pendingHere?"Saved on phone • waiting to sync":(feedback[keyFor(entry.sessionId,entry.filmId)]?"Synced":"Not yet rated"))+'</div>';
   card.querySelectorAll("[data-field]").forEach(el=>el.onchange=()=>{rec[el.dataset.field]=el.checked;touch(rec);card.querySelector(".save-state").textContent="Saved on phone • waiting to sync"});
   card.querySelectorAll("[data-interest]").forEach(el=>el.onclick=()=>{rec.broadcastInterest=Number(el.dataset.interest);touch(rec);renderFilms()});
   card.querySelector(".notes").oninput=e=>{rec.notes=e.target.value;touch(rec);card.querySelector(".save-state").textContent="Saved on phone • waiting to sync"};
+  card.querySelector(".contact-name").oninput=e=>{contact.name=e.target.value;touchContact(contact,entry);card.querySelector(".save-state").textContent="Saved on phone • waiting to sync"};
   card.querySelector(".contact-email").oninput=e=>{contact.email=e.target.value;touchContact(contact,entry);card.querySelector(".save-state").textContent="Saved on phone • waiting to sync"};
   card.querySelector(".contact-phone").oninput=e=>{contact.phone=e.target.value;touchContact(contact,entry);card.querySelector(".save-state").textContent="Saved on phone • waiting to sync"};
   wrap.appendChild(card);
@@ -73,7 +74,7 @@ async function refreshSharedContacts(){
  const {data:{session}}=await supabase.auth.getSession();if(!session||!navigator.onLine)return;
  const {data,error}=await supabase.functions.invoke("fresh-coast-contacts",{method:"GET"});
  if(error||!data?.contacts)return;
- for(const c of data.contacts){const local=contacts[c.filmId];if(!local?.dirty)contacts[c.filmId]={filmId:c.filmId,title:c.title||"",email:c.email||"",phone:c.phone||"",dirty:false}}
+ for(const c of data.contacts){const local=contacts[c.filmId];if(!local?.dirty)contacts[c.filmId]={filmId:c.filmId,title:c.title||"",name:c.name||"",email:c.email||"",phone:c.phone||"",dirty:false}}
  persistContacts();if(currentBlock)renderFilms();
 }
 async function syncNow(){
@@ -88,7 +89,7 @@ async function syncNow(){
   rows.forEach(r=>r.dirty=false);persist();
  }
  for(const c of contactRows){
-  const {error}=await supabase.functions.invoke("fresh-coast-contacts",{body:{filmId:c.filmId,title:c.title,email:c.email||"",phone:c.phone||""}});
+  const {error}=await supabase.functions.invoke("fresh-coast-contacts",{body:{filmId:c.filmId,title:c.title,name:c.name||"",email:c.email||"",phone:c.phone||""}});
   if(error){banner("Contact sync failed. Other notes are safe.",true);return}
   c.dirty=false;
  }
