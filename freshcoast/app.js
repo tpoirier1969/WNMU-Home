@@ -79,6 +79,6 @@ document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;$("authCancel").onclick=()=>$("authDialog").close();
 $("authForm").addEventListener("submit",async e=>{e.preventDefault();$("authError").textContent="";const {error}=await supabase.auth.signInWithPassword({email:$("authEmail").value.trim(),password:$("authPassword").value});if(error){$("authError").textContent=error.message;return}$("authDialog").close();if(pendingSyncAfterAuth){pendingSyncAfterAuth=false;syncNow()}});
 window.addEventListener("online",updateSyncUI);window.addEventListener("offline",updateSyncUI);
-if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+
 updateSyncUI();
 })();
