@@ -18,12 +18,11 @@ function savedChangesMessage(prefix,autoRetry=false){const n=pendingCount();retu
 function deviceId(){let id=localStorage.getItem(DEVICE_KEY)||"";if(!/^[0-9a-f-]{36}$/i.test(id)){id=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,id)}return id}
 async function bridge(body){const response=await fetch(BRIDGE_URL,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.error||("Request failed ("+response.status+")"));return data}
 function viewer(){return $("viewerName").value.trim()||"Viewer"}
-function isTod(){return viewer().toLowerCase()==="tod"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
 function blankRecord(entry,block){return{feedbackId:crypto.randomUUID(),sessionId:entry.sessionId,filmId:entry.filmId,title:entry.title,block:block.block,date:block.date,start:block.start,venue:block.venue,viewer:viewer(),swearing:false,nudity:false,fun:false,audienceLovedIt:false,talkedToFilmmaker:false,underwritingRisks:false,musicRisks:false,broadcastInterest:null,notes:"",dirty:false,updatedAt:new Date().toISOString()}}
 function getRecord(entry,block){const k=keyFor(entry.sessionId,entry.filmId);const rec=feedback[k]||blankRecord(entry,block);rec.viewer=viewer();return rec}
 function getContact(entry){return contacts[entry.filmId]||{filmId:entry.filmId,title:entry.title,name:"",email:"",phone:"",dirty:false}}
-function show(id){["homeView","blocksView","blockView","resultsView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
+function show(id){["homeView","blocksView","blockView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
 function parseDate(d){
  const s=String(d||"").trim();
  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -120,50 +119,10 @@ async function syncNow({automatic=false}={}){
   syncInFlight=false;updateSyncUI();
  }
 }
-async function openResults(){
- if(!navigator.onLine){show("resultsView");$("resultsStatus").textContent="Offline. Synced results require a connection.";renderResults(localResultRows());return}
- show("resultsView");$("resultsStatus").textContent="Loading synced results…";
- try{
-  const knownFeedbackIds=Object.values(feedback).map(r=>r.feedbackId).filter(Boolean);
-  const data=await bridge({action:"results:list",clientId:deviceId(),knownFeedbackIds});
-  const rows=data.results||[];
-  $("resultsStatus").textContent=rows.length+" synced result"+(rows.length===1?"":"s");
-  renderResults(rows);
- }catch(error){$("resultsStatus").textContent="Could not load results. Your notes on this phone are still safe."}
-}
-function localResultRows(){return Object.values(feedback).map(r=>({
- feedback_id:r.feedbackId,viewer:r.viewer,session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,
- screening_date:toISODate(r.date),screening_start:r.start,venue:r.venue,swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,
- audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,
- music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest,notes:r.notes||"",updated_at:r.updatedAt
-}))}
-function renderResults(rows){
- const list=$("resultsList");list.innerHTML="";
- if(!rows.length){list.innerHTML='<div class="result-card"><h3>No synced feedback yet</h3><p>Rate a film and press Update Spreadsheet.</p></div>';return}
- let last="";
- for(const r of rows){
-  if(r.title!==last){const h=document.createElement("div");h.className="day-heading";h.textContent=r.title;list.appendChild(h);last=r.title}
-  const card=document.createElement("article");card.className="result-card";
-  const tags=[r.swearing?"Swearing":"",r.nudity?"Nudity":"",r.fun?"Fun":"",r.audience_loved_it?"Audience loved it":"",r.talked_to_filmmaker?"Talked to filmmaker":"",r.underwriting_risks?"Underwriting risk":"",r.music_risks?"Music risk":""].filter(Boolean);
-  card.innerHTML='<div class="result-meta">'+esc(r.viewer||"")+(r.screening_date?" • "+esc(r.screening_date):"")+(r.festival_block?" • "+esc(r.festival_block):"")+'</div>'+(r.broadcast_interest?'<div class="result-interest">Broadcast interest: <strong>'+esc(r.broadcast_interest)+'</strong></div>':'')+(tags.length?'<div class="badge-row">'+tags.map(t=>'<span class="badge">'+esc(t)+'</span>').join("")+'</div>':'')+(r.notes?'<p class="result-notes">'+esc(r.notes)+'</p>':'')+(isTod()?'<button type="button" class="danger-button" data-delete-feedback="'+esc(r.feedback_id)+'">Delete feedback</button>':'');
-  list.appendChild(card);
- }
- list.querySelectorAll("[data-delete-feedback]").forEach(btn=>btn.onclick=()=>deleteFeedback(btn.dataset.deleteFeedback));
-}
-async function deleteFeedback(id){
- if(!isTod())return;
- if(!window.confirm("Delete this synced feedback? This cannot be undone."))return;
- if(!navigator.onLine){$("resultsStatus").textContent="Delete requires a connection.";return}
- try{
-  await bridge({action:"feedback:delete",clientId:deviceId(),feedbackId:id});
-  for(const [k,r] of Object.entries(feedback))if(r.feedbackId===id)delete feedback[k];
-  persist();await openResults();
- }catch(error){$("resultsStatus").textContent="Delete failed. Try again when the connection is stable."}
-}
 function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
 $("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
-$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};$("resultsBtn").onclick=openResults;$("refreshResults").onclick=openResults;
+$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;
 async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(retryWanted()&&pendingCount())await syncNow({automatic:true})}
