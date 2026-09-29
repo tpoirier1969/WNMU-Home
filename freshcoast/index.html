@@ -12,7 +12,7 @@
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
     navigator.serviceWorker
-      .register("sw.js?v=20260929-14",{scope:"./",updateViaCache:"none"})
+      .register("sw.js?v=20260929-15",{scope:"./",updateViaCache:"none"})
       .then(registration=>registration.update())
       .catch(error=>console.warn("Fresh Coast offline cache unavailable.",error));
   });
@@ -75,19 +75,9 @@ if("serviceWorker" in navigator){
     <main id="resultsList" class="results-list"></main>
   </section>
 
-  <dialog id="authDialog">
-    <form class="auth-card" id="authForm">
-      <h3>Sign in</h3>
-      <p>Sign in to sync notes, share contact details, or review synced results.</p>
-      <label>Email<input id="authEmail" type="email" autocomplete="username" required></label>
-      <label>Password<input id="authPassword" type="password" autocomplete="current-password" required></label>
-      <div id="authError" class="auth-error"></div>
-      <div class="dialog-actions"><button type="button" id="authCancel" class="secondary">Cancel</button><button type="submit" id="authSubmit" class="primary">Sign in & sync</button></div>
-    </form>
-  </dialog>
+
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
 <script src="data.js?v=20260928-8"></script>
-<script src="app.js?v=20260929-14"></script>
+<script src="app.js?v=20260929-15"></script>
 </body>
 </html>
