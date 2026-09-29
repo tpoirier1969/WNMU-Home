@@ -3,9 +3,9 @@
 const DATA=window.FRESH_COAST_DATA||{viewers:[],films:{},blocks:[]};
 const SB_URL="https://tdepltlnughyfrjqufdg.supabase.co";
 const SB_KEY="sb_publishable_oz-1MPs6ix3grIJ7dCbOZg_jYpw6_Q1";
-const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync";
-const supabase=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,pendingSyncAfterAuth=false,pendingResultsAfterAuth=false,syncInFlight=false,bannerTimer=null;
+const BRIDGE_URL=SB_URL+"/functions/v1/fresh-coast-public-data";
+const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync",DEVICE_KEY="fcff26_device_id";
+let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,syncInFlight=false,bannerTimer=null;
 const $=id=>document.getElementById(id);
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
 function loadContacts(){try{return JSON.parse(localStorage.getItem(CONTACT_KEY)||"{}")}catch{return {}}}
@@ -15,6 +15,8 @@ function retryWanted(){return localStorage.getItem(RETRY_KEY)==="1"}
 function setRetryWanted(wanted){if(wanted)localStorage.setItem(RETRY_KEY,"1");else localStorage.removeItem(RETRY_KEY)}
 function pendingCount(){return pending().length+pendingContacts().length}
 function savedChangesMessage(prefix,autoRetry=false){const n=pendingCount();return prefix+" "+n+" change"+(n===1?" is":"s are")+" still saved on this phone."+(autoRetry?" Reconnecting will retry automatically.":"")}
+function deviceId(){let id=localStorage.getItem(DEVICE_KEY)||"";if(!/^[0-9a-f-]{36}$/i.test(id)){id=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,id)}return id}
+async function bridge(body){const response=await fetch(BRIDGE_URL,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.error||("Request failed ("+response.status+")"));return data}
 function viewer(){return $("viewerName").value.trim()||"Viewer"}
 function isTod(){return viewer().toLowerCase()==="tod"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
@@ -74,39 +76,37 @@ function touchContact(contact,entry){contact.filmId=entry.filmId;contact.title=e
 function pending(){return Object.values(feedback).filter(r=>r.dirty)}
 function pendingContacts(){return Object.values(contacts).filter(r=>r.dirty)}
 function updateSyncUI(){const n=pendingCount(),online=navigator.onLine;[$("syncButton"),$("syncButton2")].forEach(b=>{b.disabled=!n||syncInFlight;b.classList.toggle("offline",!online)});$("syncText").textContent=syncInFlight?"Syncing…":(n?"Update Spreadsheet ("+n+")":"Cloud synced");document.querySelectorAll(".sync-text-copy").forEach(x=>x.textContent=syncInFlight?"Syncing…":(n?"Update ("+n+")":"Cloud synced"));document.querySelectorAll(".sync-dot-copy").forEach(x=>x.style.background=online?"var(--ok)":"var(--danger)");$("homeStatus").textContent=n?n+" unsynced change"+(n===1?"":"s")+" saved on this phone.":"No unsynced changes on this phone."}
-async function requireSession(reason="sync"){const {data:{session}}=await supabase.auth.getSession();if(session)return session;if(reason==="results")pendingResultsAfterAuth=true;else pendingSyncAfterAuth=true;$("authDialog").showModal();return null}
 async function refreshSharedContacts(){
- const {data:{session}}=await supabase.auth.getSession();if(!session||!navigator.onLine)return;
- const {data,error}=await supabase.functions.invoke("fresh-coast-contacts",{method:"GET"});
- if(error||!data?.contacts)return;
- for(const c of data.contacts){const local=contacts[c.filmId];if(!local?.dirty)contacts[c.filmId]={filmId:c.filmId,title:c.title||"",name:c.name||"",email:c.email||"",phone:c.phone||"",dirty:false}}
- persistContacts();if(currentBlock)renderFilms();
+ if(!navigator.onLine)return;
+ try{
+  const data=await bridge({action:"contacts:list"});
+  if(!data?.contacts)return;
+  for(const c of data.contacts){const local=contacts[c.filmId];if(!local?.dirty)contacts[c.filmId]={filmId:c.filmId,title:c.title||"",name:c.name||"",email:c.email||"",phone:c.phone||"",dirty:false}}
+  persistContacts();if(currentBlock)renderFilms();
+ }catch{}
 }
 async function syncNow({automatic=false}={}){
  if(syncInFlight)return;
  if(!navigator.onLine){banner(savedChangesMessage("Offline.",true));return}
  const rows=pending(),contactRows=pendingContacts();if(!rows.length&&!contactRows.length){setRetryWanted(false);banner("Nothing waiting to sync.");return}
- let session;
- if(automatic){
-  const {data}=await supabase.auth.getSession();session=data.session;
-  if(!session){banner(savedChangesMessage("Connection restored, but sign-in is required to resume syncing."),true);return}
- }else{
-  session=await requireSession("sync");if(!session)return;
- }
  syncInFlight=true;setRetryWanted(true);updateSyncUI();
  try{
   if(rows.length){
    const sentRows=rows.map(r=>({record:r,updatedAt:r.updatedAt}));
-   const payload=rows.map(r=>({feedback_id:r.feedbackId,user_id:session.user.id,viewer:r.viewer||viewer(),session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,screening_date:toISODate(r.date),screening_start:r.start||null,venue:r.venue||"",swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest||null,notes:r.notes||"",client_updated_at:r.updatedAt||new Date().toISOString(),updated_at:new Date().toISOString()}));
+   const payload=rows.map(r=>({
+    feedbackId:r.feedbackId,sessionId:r.sessionId,filmId:r.filmId,title:r.title,block:r.block,
+    screeningDate:toISODate(r.date),start:r.start||null,venue:r.venue||"",
+    swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audienceLovedIt:!!r.audienceLovedIt,
+    talkedToFilmmaker:!!r.talkedToFilmmaker,underwritingRisks:!!r.underwritingRisks,musicRisks:!!r.musicRisks,
+    broadcastInterest:r.broadcastInterest||null,notes:r.notes||"",updatedAt:r.updatedAt||new Date().toISOString()
+   }));
    banner(automatic?"Connection restored. Retrying saved changes…":"Updating spreadsheet…");
-   const {error}=await supabase.from("fc_feedback").upsert(payload,{onConflict:"feedback_id"});
-   if(error){banner(navigator.onLine?savedChangesMessage("Sync could not finish."):savedChangesMessage("Sync interrupted.",true),true);return}
+   await bridge({action:"feedback:sync",clientId:deviceId(),viewer:viewer(),rows:payload});
    sentRows.forEach(({record,updatedAt})=>{if(record.updatedAt===updatedAt)record.dirty=false});persist();
   }
   for(const contact of contactRows){
    const sentAt=contact.updatedAt||null;
-   const {error}=await supabase.functions.invoke("fresh-coast-contacts",{body:{filmId:contact.filmId,title:contact.title,name:contact.name||"",email:contact.email||"",phone:contact.phone||""}});
-   if(error){banner(navigator.onLine?savedChangesMessage("Contact sync could not finish."):savedChangesMessage("Sync interrupted.",true),true);return}
+   await bridge({action:"contacts:upsert",clientId:deviceId(),filmId:contact.filmId,title:contact.title,name:contact.name||"",email:contact.email||"",phone:contact.phone||""});
    if((contact.updatedAt||null)===sentAt)contact.dirty=false;
    persistContacts();
   }
@@ -114,19 +114,29 @@ async function syncNow({automatic=false}={}){
   if(currentBlock)renderFilms();
   if(pendingCount())banner(savedChangesMessage("Some newer changes are still waiting to sync."));
   else banner("Cloud synced. The Google Sheet may still be refreshing.");
+ }catch(error){
+  banner(navigator.onLine?savedChangesMessage("Sync could not finish."):savedChangesMessage("Sync interrupted.",true),true);
  }finally{
   syncInFlight=false;updateSyncUI();
  }
 }
 async function openResults(){
- if(!navigator.onLine){show("resultsView");$("resultsStatus").textContent="Offline. Synced results require a connection.";renderResults(Object.values(feedback).filter(r=>!r.dirty));return}
- const session=await requireSession("results");if(!session)return;
+ if(!navigator.onLine){show("resultsView");$("resultsStatus").textContent="Offline. Synced results require a connection.";renderResults(localResultRows());return}
  show("resultsView");$("resultsStatus").textContent="Loading synced results…";
- const {data,error}=await supabase.from("fc_feedback").select("*").neq("session_id","CONTACT").order("title",{ascending:true}).order("updated_at",{ascending:false});
- if(error){$("resultsStatus").textContent="Could not load results: "+error.message;return}
- $("resultsStatus").textContent=(data||[]).length+" synced result"+((data||[]).length===1?"":"s");
- renderResults(data||[]);
+ try{
+  const knownFeedbackIds=Object.values(feedback).map(r=>r.feedbackId).filter(Boolean);
+  const data=await bridge({action:"results:list",clientId:deviceId(),knownFeedbackIds});
+  const rows=data.results||[];
+  $("resultsStatus").textContent=rows.length+" synced result"+(rows.length===1?"":"s");
+  renderResults(rows);
+ }catch(error){$("resultsStatus").textContent="Could not load results. Your notes on this phone are still safe."}
 }
+function localResultRows(){return Object.values(feedback).map(r=>({
+ feedback_id:r.feedbackId,viewer:r.viewer,session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,
+ screening_date:toISODate(r.date),screening_start:r.start,venue:r.venue,swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,
+ audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,
+ music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest,notes:r.notes||"",updated_at:r.updatedAt
+}))}
 function renderResults(rows){
  const list=$("resultsList");list.innerHTML="";
  if(!rows.length){list.innerHTML='<div class="result-card"><h3>No synced feedback yet</h3><p>Rate a film and press Update Spreadsheet.</p></div>';return}
@@ -143,19 +153,19 @@ function renderResults(rows){
 async function deleteFeedback(id){
  if(!isTod())return;
  if(!window.confirm("Delete this synced feedback? This cannot be undone."))return;
- const session=await requireSession("results");if(!session)return;
- const {error}=await supabase.from("fc_feedback").delete().eq("feedback_id",id);
- if(error){$("resultsStatus").textContent="Delete failed: "+error.message;return}
- for(const [k,r] of Object.entries(feedback))if(r.feedbackId===id)delete feedback[k];
- persist();await openResults();
+ if(!navigator.onLine){$("resultsStatus").textContent="Delete requires a connection.";return}
+ try{
+  await bridge({action:"feedback:delete",clientId:deviceId(),feedbackId:id});
+  for(const [k,r] of Object.entries(feedback))if(r.feedbackId===id)delete feedback[k];
+  persist();await openResults();
+ }catch(error){$("resultsStatus").textContent="Delete failed. Try again when the connection is stable."}
 }
 function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
 $("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
 $("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};$("resultsBtn").onclick=openResults;$("refreshResults").onclick=openResults;
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
-$("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;$("authCancel").onclick=()=>$("authDialog").close();
-$("authForm").addEventListener("submit",async e=>{e.preventDefault();$("authError").textContent="";const {error}=await supabase.auth.signInWithPassword({email:$("authEmail").value.trim(),password:$("authPassword").value});if(error){$("authError").textContent=error.message;return}$("authDialog").close();await refreshSharedContacts();if(pendingSyncAfterAuth){pendingSyncAfterAuth=false;syncNow()}if(pendingResultsAfterAuth){pendingResultsAfterAuth=false;openResults()}});
+$("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;
 async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(retryWanted()&&pendingCount())await syncNow({automatic:true})}
 window.addEventListener("online",handleOnline);
 window.addEventListener("offline",()=>{updateSyncUI();if(syncInFlight)banner(savedChangesMessage("Sync interrupted.",true),true)});
