@@ -152,6 +152,9 @@ $("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlo
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;$("authCancel").onclick=()=>$("authDialog").close();
 $("authForm").addEventListener("submit",async e=>{e.preventDefault();$("authError").textContent="";const {error}=await supabase.auth.signInWithPassword({email:$("authEmail").value.trim(),password:$("authPassword").value});if(error){$("authError").textContent=error.message;return}$("authDialog").close();await refreshSharedContacts();if(pendingSyncAfterAuth){pendingSyncAfterAuth=false;syncNow()}if(pendingResultsAfterAuth){pendingResultsAfterAuth=false;openResults()}});
-window.addEventListener("online",()=>{updateSyncUI();refreshSharedContacts()});window.addEventListener("offline",updateSyncUI);
+async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(retryWanted()&&pendingCount())await syncNow({automatic:true})}
+window.addEventListener("online",handleOnline);
+window.addEventListener("offline",()=>{updateSyncUI();if(syncInFlight)banner(savedChangesMessage("Sync interrupted.",true),true)});
 refreshSharedContacts();updateSyncUI();
+if(navigator.onLine&&retryWanted()&&pendingCount())setTimeout(()=>syncNow({automatic:true}),500);
 })();
