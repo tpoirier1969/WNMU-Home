@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const PORTAL_VERSION = "v1.0.35-r2026-09-29";
+  const PORTAL_VERSION = "v1.0.36-r2026-09-29";
   const OWNER_PAGES_ROOT = "https://tpoirier1969.github.io";
   const PLEDGE_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Fundraising-library-and-data`;
   const PROGRAMMING_APP_ROOT = `${OWNER_PAGES_ROOT}/WNMU-Programming-library`;
@@ -64,7 +64,7 @@
     { appKey: "pledge_library", title: "Pledge Library / Scheduler", description: "Pledge program library, scheduler, and drive tools.", url: `${PLEDGE_APP_ROOT}/`, versionUrl: `${PLEDGE_APP_ROOT}/version.json`, accent: "#376d5c", tagBg: "#e4f1ed", tagText: "#376d5c", tags: [] },
     { appKey: "monthly_schedules", title: "Monthly Schedules", description: "Monthly imports, channel grids, and schedule review.", url: `${MONTHLY_APP_ROOT}/`, versionUrl: `${MONTHLY_APP_ROOT}/version.json`, fallbackVersion: "v1.4.1", accent: "#62517e", tagBg: "#ece7f4", tagText: "#62517e", tags: [] },
     { appKey: "wnmufm_analytics", title: "FM Audience Analytics", description: "WNMU-FM audience trends, NPR benchmarks, digital listening, website, and on-demand analytics.", url: `${FM_ANALYTICS_ROOT}/`, versionUrl: `${FM_ANALYTICS_ROOT}/src/version.js`, accent: "#177da2", tagBg: "#e0f3fa", tagText: "#176684", tags: [] },
-    { appKey: "fresh_coast_viewer", title: "Fresh Coast Film Viewer", description: "Offline-first festival block viewer for WNMU notes, contact info, and broadcast-interest feedback.", url: `${OWNER_PAGES_ROOT}/WNMU-Home/freshcoast/live.html`, versionUrl: `${OWNER_PAGES_ROOT}/WNMU-Home/freshcoast/version.json`, fallbackVersion: "2026.09.29", accent: "#26a5a2", tagBg: "#e0f5f3", tagText: "#0f6671", tags: ["Festival tool"], signedInAccess: true },
+    { appKey: "fresh_coast_viewer", title: "Fresh Coast Film Viewer", description: "Offline-first festival block viewer for WNMU notes, contact info, and broadcast-interest feedback.", url: `${OWNER_PAGES_ROOT}/WNMU-Home/freshcoast/live.html`, versionUrl: `${OWNER_PAGES_ROOT}/WNMU-Home/freshcoast/version.json`, fallbackVersion: "2026.09.29", accent: "#26a5a2", tagBg: "#e0f5f3", tagText: "#0f6671", tags: ["Festival tool"], publicAccess: true },
     { appKey: "timecode_calculator", title: "Timecode Calculator", description: "Calculator based on timecode and segmenting pledge programs.", url: "timecode-calculator.html", versionUrl: HOME_VERSION_URL, fallbackVersion: PORTAL_VERSION, accent: "#315f8c", tagBg: "#e4eef8", tagText: "#315f8c", tags: [], signedInAccess: true, quickTool: "timecode" }
   ];
 
@@ -158,8 +158,9 @@
   function isSignedIn() { return Boolean(homeState.user?.email); }
   function roleForApp(appKey) { return normalizeRole(homeState.roles.get(appKey)); }
   function hasAppAccess(appKey) {
-    if (!isSignedIn()) return false;
     const app = apps.find((item) => item.appKey === appKey);
+    if (app?.publicAccess) return true;
+    if (!isSignedIn()) return false;
     if (app?.signedInAccess) return true;
     return roleRank(roleForApp(appKey)) >= ROLE_PRIORITY.viewer;
   }
@@ -447,7 +448,7 @@
     heading.textContent = app.title;
     card.append(heading);
 
-    if (!signedIn) {
+    if (!signedIn && !app.publicAccess) {
       const lockedRow = document.createElement("div");
       lockedRow.className = "app-card__locked-row";
       const lockedButton = document.createElement("button");
