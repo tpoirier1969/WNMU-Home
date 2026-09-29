@@ -12,7 +12,7 @@
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
     navigator.serviceWorker
-      .register("sw.js?v=20260929-15",{scope:"./",updateViaCache:"none"})
+      .register("sw.js?v=20260929-16",{scope:"./",updateViaCache:"none"})
       .then(registration=>registration.update())
       .catch(error=>console.warn("Fresh Coast offline cache unavailable.",error));
   });
@@ -38,7 +38,6 @@ if("serviceWorker" in navigator){
     <div class="home-actions">
       <button id="myBlocksBtn" class="primary">My assigned blocks</button>
       <button id="allBlocksBtn" class="secondary">All film blocks</button>
-      <button id="resultsBtn" class="secondary">Review My Results</button>
     </div>
     <div id="homeStatus" class="home-status"></div>
   </section>
@@ -62,22 +61,11 @@ if("serviceWorker" in navigator){
     <main id="filmList" class="film-list"></main>
   </section>
 
-  <section id="resultsView" class="dark-view hidden">
-    <header class="dark-header">
-      <button class="icon-button" data-home aria-label="Home">‹</button>
-      <div><div class="mini-label">Fresh Coast 2026</div><h2>My Results</h2></div>
-      <button id="refreshResults" class="sync-button compact">Refresh</button>
-    </header>
-    <div class="results-toolbar">
-      <a class="secondary result-link" href="https://docs.google.com/spreadsheets/d/1q5pghtLw5Eo5lPZGJSaZf_0dTXQ1ZCfsTRb7ddaZNes/edit#gid=1720260915" target="_blank" rel="noopener">Open all viewer results</a>
-    </div>
-    <div id="resultsStatus" class="sync-banner"></div>
-    <main id="resultsList" class="results-list"></main>
-  </section>
+
 
 
 </div>
 <script src="data.js?v=20260928-8"></script>
-<script src="app.js?v=20260929-15"></script>
+<script src="app.js?v=20260929-16"></script>
 </body>
 </html>
