@@ -10,7 +10,11 @@ const $=id=>document.getElementById(id);
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
 function loadContacts(){try{return JSON.parse(localStorage.getItem(CONTACT_KEY)||"{}")}catch{return {}}}
 function persist(){localStorage.setItem(STORE_KEY,JSON.stringify(feedback));updateSyncUI()}
-function persistContacts(){localStorage.setItem(CONTACT_KEY,JSON.stringify(contacts));updateSyncUI()}\nfunction retryWanted(){return localStorage.getItem(RETRY_KEY)==="1"}\nfunction setRetryWanted(wanted){if(wanted)localStorage.setItem(RETRY_KEY,"1");else localStorage.removeItem(RETRY_KEY)}\nfunction pendingCount(){return pending().length+pendingContacts().length}\nfunction savedChangesMessage(prefix,autoRetry=false){const n=pendingCount();return prefix+" "+n+" change"+(n===1?" is":"s are")+" still saved on this phone."+(autoRetry?" Reconnecting will retry automatically.":"")}
+function persistContacts(){localStorage.setItem(CONTACT_KEY,JSON.stringify(contacts));updateSyncUI()}
+function retryWanted(){return localStorage.getItem(RETRY_KEY)==="1"}
+function setRetryWanted(wanted){if(wanted)localStorage.setItem(RETRY_KEY,"1");else localStorage.removeItem(RETRY_KEY)}
+function pendingCount(){return pending().length+pendingContacts().length}
+function savedChangesMessage(prefix,autoRetry=false){const n=pendingCount();return prefix+" "+n+" change"+(n===1?" is":"s are")+" still saved on this phone."+(autoRetry?" Reconnecting will retry automatically.":"")}
 function viewer(){return $("viewerName").value.trim()||"Viewer"}
 function isTod(){return viewer().toLowerCase()==="tod"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
