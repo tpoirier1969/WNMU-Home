@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "fresh-coast-viewer-";
-const CACHE_NAME = CACHE_PREFIX + "20260929-14";
+const CACHE_NAME = CACHE_PREFIX + "20260929-15";
 const NETWORK_TIMEOUT_MS = 2500;
 
 const CORE_ASSETS = [
@@ -8,11 +8,10 @@ const CORE_ASSETS = [
   "./live.html",
   "./styles.css?v=20260929-12",
   "./data.js?v=20260928-8",
-  "./app.js?v=20260929-14",
+  "./app.js?v=20260929-15",
   "./manifest.webmanifest",
   "../icon-192.png",
-  "../icon-512.png",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"
+  "../icon-512.png"
 ];
 
 self.addEventListener("install", event => {
@@ -74,10 +73,7 @@ self.addEventListener("fetch", event => {
 
   const url = new URL(request.url);
   const isFreshCoastAsset = url.origin === self.location.origin;
-  const isSupabaseClient = url.hostname === "cdn.jsdelivr.net" &&
-    url.pathname.includes("/@supabase/supabase-js@2.57.4/");
-
-  if (request.mode === "navigate" || isFreshCoastAsset || isSupabaseClient) {
+  if (request.mode === "navigate" || isFreshCoastAsset) {
     event.respondWith(networkFirst(request));
   }
 });
