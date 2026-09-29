@@ -3,14 +3,14 @@
 const DATA=window.FRESH_COAST_DATA||{viewers:[],films:{},blocks:[]};
 const SB_URL="https://tdepltlnughyfrjqufdg.supabase.co";
 const SB_KEY="sb_publishable_oz-1MPs6ix3grIJ7dCbOZg_jYpw6_Q1";
-const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer";
+const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync";
 const supabase=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,pendingSyncAfterAuth=false,pendingResultsAfterAuth=false;
+let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,pendingSyncAfterAuth=false,pendingResultsAfterAuth=false,syncInFlight=false,bannerTimer=null;
 const $=id=>document.getElementById(id);
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
 function loadContacts(){try{return JSON.parse(localStorage.getItem(CONTACT_KEY)||"{}")}catch{return {}}}
 function persist(){localStorage.setItem(STORE_KEY,JSON.stringify(feedback));updateSyncUI()}
-function persistContacts(){localStorage.setItem(CONTACT_KEY,JSON.stringify(contacts));updateSyncUI()}
+function persistContacts(){localStorage.setItem(CONTACT_KEY,JSON.stringify(contacts));updateSyncUI()}\nfunction retryWanted(){return localStorage.getItem(RETRY_KEY)==="1"}\nfunction setRetryWanted(wanted){if(wanted)localStorage.setItem(RETRY_KEY,"1");else localStorage.removeItem(RETRY_KEY)}\nfunction pendingCount(){return pending().length+pendingContacts().length}\nfunction savedChangesMessage(prefix,autoRetry=false){const n=pendingCount();return prefix+" "+n+" change"+(n===1?" is":"s are")+" still saved on this phone."+(autoRetry?" Reconnecting will retry automatically.":"")}
 function viewer(){return $("viewerName").value.trim()||"Viewer"}
 function isTod(){return viewer().toLowerCase()==="tod"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
@@ -66,10 +66,10 @@ function renderFilms(){
  });
 }
 function touch(rec){feedback[keyFor(rec.sessionId,rec.filmId)]=rec;rec.viewer=viewer();rec.updatedAt=new Date().toISOString();rec.dirty=true;persist()}
-function touchContact(contact,entry){contact.filmId=entry.filmId;contact.title=entry.title;contact.dirty=true;contacts[entry.filmId]=contact;persistContacts()}
+function touchContact(contact,entry){contact.filmId=entry.filmId;contact.title=entry.title;contact.updatedAt=new Date().toISOString();contact.dirty=true;contacts[entry.filmId]=contact;persistContacts()}
 function pending(){return Object.values(feedback).filter(r=>r.dirty)}
 function pendingContacts(){return Object.values(contacts).filter(r=>r.dirty)}
-function updateSyncUI(){const n=pending().length+pendingContacts().length,online=navigator.onLine;[$("syncButton"),$("syncButton2")].forEach(b=>{b.disabled=!n;b.classList.toggle("offline",!online)});$("syncText").textContent=n?"Update Spreadsheet ("+n+")":"Cloud synced";document.querySelectorAll(".sync-text-copy").forEach(x=>x.textContent=n?"Update ("+n+")":"Cloud synced");document.querySelectorAll(".sync-dot-copy").forEach(x=>x.style.background=online?"var(--ok)":"var(--danger)");$("homeStatus").textContent=n?n+" unsynced change"+(n===1?"":"s")+" saved on this phone.":"No unsynced changes on this phone."}
+function updateSyncUI(){const n=pendingCount(),online=navigator.onLine;[$("syncButton"),$("syncButton2")].forEach(b=>{b.disabled=!n||syncInFlight;b.classList.toggle("offline",!online)});$("syncText").textContent=syncInFlight?"Syncing…":(n?"Update Spreadsheet ("+n+")":"Cloud synced");document.querySelectorAll(".sync-text-copy").forEach(x=>x.textContent=syncInFlight?"Syncing…":(n?"Update ("+n+")":"Cloud synced"));document.querySelectorAll(".sync-dot-copy").forEach(x=>x.style.background=online?"var(--ok)":"var(--danger)");$("homeStatus").textContent=n?n+" unsynced change"+(n===1?"":"s")+" saved on this phone.":"No unsynced changes on this phone."}
 async function requireSession(reason="sync"){const {data:{session}}=await supabase.auth.getSession();if(session)return session;if(reason==="results")pendingResultsAfterAuth=true;else pendingSyncAfterAuth=true;$("authDialog").showModal();return null}
 async function refreshSharedContacts(){
  const {data:{session}}=await supabase.auth.getSession();if(!session||!navigator.onLine)return;
@@ -78,23 +78,41 @@ async function refreshSharedContacts(){
  for(const c of data.contacts){const local=contacts[c.filmId];if(!local?.dirty)contacts[c.filmId]={filmId:c.filmId,title:c.title||"",name:c.name||"",email:c.email||"",phone:c.phone||"",dirty:false}}
  persistContacts();if(currentBlock)renderFilms();
 }
-async function syncNow(){
- if(!navigator.onLine){banner("Offline. Your notes are safe on this phone.");return}
- const rows=pending(),contactRows=pendingContacts();if(!rows.length&&!contactRows.length){banner("Nothing waiting to sync.");return}
- const session=await requireSession("sync");if(!session)return;
- if(rows.length){
-  const payload=rows.map(r=>({feedback_id:r.feedbackId,user_id:session.user.id,viewer:r.viewer||viewer(),session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,screening_date:toISODate(r.date),screening_start:r.start||null,venue:r.venue||"",swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest||null,notes:r.notes||"",client_updated_at:r.updatedAt||new Date().toISOString(),updated_at:new Date().toISOString()}));
-  banner("Updating spreadsheet…");
-  const {error}=await supabase.from("fc_feedback").upsert(payload,{onConflict:"feedback_id"});
-  if(error){banner("Sync failed: "+error.message,true);return}
-  rows.forEach(r=>r.dirty=false);persist();
+async function syncNow({automatic=false}={}){
+ if(syncInFlight)return;
+ if(!navigator.onLine){banner(savedChangesMessage("Offline.",true));return}
+ const rows=pending(),contactRows=pendingContacts();if(!rows.length&&!contactRows.length){setRetryWanted(false);banner("Nothing waiting to sync.");return}
+ let session;
+ if(automatic){
+  const {data}=await supabase.auth.getSession();session=data.session;
+  if(!session){banner(savedChangesMessage("Connection restored, but sign-in is required to resume syncing."),true);return}
+ }else{
+  session=await requireSession("sync");if(!session)return;
  }
- for(const c of contactRows){
-  const {error}=await supabase.functions.invoke("fresh-coast-contacts",{body:{filmId:c.filmId,title:c.title,name:c.name||"",email:c.email||"",phone:c.phone||""}});
-  if(error){banner("Contact sync failed. Other notes are safe.",true);return}
-  c.dirty=false;
+ syncInFlight=true;setRetryWanted(true);updateSyncUI();
+ try{
+  if(rows.length){
+   const sentRows=rows.map(r=>({record:r,updatedAt:r.updatedAt}));
+   const payload=rows.map(r=>({feedback_id:r.feedbackId,user_id:session.user.id,viewer:r.viewer||viewer(),session_id:r.sessionId,festival_block:r.block,film_id:r.filmId,title:r.title,screening_date:toISODate(r.date),screening_start:r.start||null,venue:r.venue||"",swearing:!!r.swearing,nudity:!!r.nudity,fun:!!r.fun,audience_loved_it:!!r.audienceLovedIt,talked_to_filmmaker:!!r.talkedToFilmmaker,underwriting_risks:!!r.underwritingRisks,music_risks:!!r.musicRisks,broadcast_interest:r.broadcastInterest||null,notes:r.notes||"",client_updated_at:r.updatedAt||new Date().toISOString(),updated_at:new Date().toISOString()}));
+   banner(automatic?"Connection restored. Retrying saved changes…":"Updating spreadsheet…");
+   const {error}=await supabase.from("fc_feedback").upsert(payload,{onConflict:"feedback_id"});
+   if(error){banner(navigator.onLine?savedChangesMessage("Sync could not finish."):savedChangesMessage("Sync interrupted.",true),true);return}
+   sentRows.forEach(({record,updatedAt})=>{if(record.updatedAt===updatedAt)record.dirty=false});persist();
+  }
+  for(const contact of contactRows){
+   const sentAt=contact.updatedAt||null;
+   const {error}=await supabase.functions.invoke("fresh-coast-contacts",{body:{filmId:contact.filmId,title:contact.title,name:contact.name||"",email:contact.email||"",phone:contact.phone||""}});
+   if(error){banner(navigator.onLine?savedChangesMessage("Contact sync could not finish."):savedChangesMessage("Sync interrupted.",true),true);return}
+   if((contact.updatedAt||null)===sentAt)contact.dirty=false;
+   persistContacts();
+  }
+  if(!pendingCount())setRetryWanted(false);
+  if(currentBlock)renderFilms();
+  if(pendingCount())banner(savedChangesMessage("Some newer changes are still waiting to sync."));
+  else banner("Cloud synced. The Google Sheet may still be refreshing.");
+ }finally{
+  syncInFlight=false;updateSyncUI();
  }
- persistContacts();if(currentBlock)renderFilms();banner("Cloud synced. The Google Sheet may still be refreshing.")
 }
 async function openResults(){
  if(!navigator.onLine){show("resultsView");$("resultsStatus").textContent="Offline. Synced results require a connection.";renderResults(Object.values(feedback).filter(r=>!r.dirty));return}
@@ -127,7 +145,7 @@ async function deleteFeedback(id){
  for(const [k,r] of Object.entries(feedback))if(r.feedbackId===id)delete feedback[k];
  persist();await openResults();
 }
-function banner(msg,bad=false){const el=$("syncBanner");el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");setTimeout(()=>{el.className="sync-banner";el.textContent=""},5500)}
+function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
 $("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
 $("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};$("resultsBtn").onclick=openResults;$("refreshResults").onclick=openResults;
