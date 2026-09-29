@@ -68,7 +68,7 @@ function touch(rec){feedback[keyFor(rec.sessionId,rec.filmId)]=rec;rec.viewer=vi
 function touchContact(contact,entry){contact.filmId=entry.filmId;contact.title=entry.title;contact.dirty=true;contacts[entry.filmId]=contact;persistContacts()}
 function pending(){return Object.values(feedback).filter(r=>r.dirty)}
 function pendingContacts(){return Object.values(contacts).filter(r=>r.dirty)}
-function updateSyncUI(){const n=pending().length+pendingContacts().length,online=navigator.onLine;[$("syncButton"),$("syncButton2")].forEach(b=>{b.disabled=!n;b.classList.toggle("offline",!online)});$("syncText").textContent=n?"Update Spreadsheet ("+n+")":"Spreadsheet up to date";document.querySelectorAll(".sync-text-copy").forEach(x=>x.textContent=n?"Update ("+n+")":"Up to date");document.querySelectorAll(".sync-dot-copy").forEach(x=>x.style.background=online?"var(--ok)":"var(--danger)");$("homeStatus").textContent=n?n+" unsynced change"+(n===1?"":"s")+" saved on this phone.":"No unsynced changes on this phone."}
+function updateSyncUI(){const n=pending().length+pendingContacts().length,online=navigator.onLine;[$("syncButton"),$("syncButton2")].forEach(b=>{b.disabled=!n;b.classList.toggle("offline",!online)});$("syncText").textContent=n?"Update Spreadsheet ("+n+")":"Cloud synced";document.querySelectorAll(".sync-text-copy").forEach(x=>x.textContent=n?"Update ("+n+")":"Cloud synced");document.querySelectorAll(".sync-dot-copy").forEach(x=>x.style.background=online?"var(--ok)":"var(--danger)");$("homeStatus").textContent=n?n+" unsynced change"+(n===1?"":"s")+" saved on this phone.":"No unsynced changes on this phone."}
 async function requireSession(reason="sync"){const {data:{session}}=await supabase.auth.getSession();if(session)return session;if(reason==="results")pendingResultsAfterAuth=true;else pendingSyncAfterAuth=true;$("authDialog").showModal();return null}
 async function refreshSharedContacts(){
  const {data:{session}}=await supabase.auth.getSession();if(!session||!navigator.onLine)return;
@@ -93,7 +93,7 @@ async function syncNow(){
   if(error){banner("Contact sync failed. Other notes are safe.",true);return}
   c.dirty=false;
  }
- persistContacts();if(currentBlock)renderFilms();banner("Synced. Viewer Feedback will refresh in the spreadsheet when Google refreshes the live feed.")
+ persistContacts();if(currentBlock)renderFilms();banner("Cloud synced. The Google Sheet may still be refreshing.")
 }
 async function openResults(){
  if(!navigator.onLine){show("resultsView");$("resultsStatus").textContent="Offline. Synced results require a connection.";renderResults(Object.values(feedback).filter(r=>!r.dirty));return}
