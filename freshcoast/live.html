@@ -12,7 +12,7 @@
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
     navigator.serviceWorker
-      .register("sw.js?v=20260929-16",{scope:"./",updateViaCache:"none"})
+      .register("sw.js?v=20261007-1",{scope:"./",updateViaCache:"none"})
       .then(registration=>registration.update())
       .catch(error=>console.warn("Fresh Coast offline cache unavailable.",error));
   });
@@ -65,7 +65,7 @@ if("serviceWorker" in navigator){
 
 
 </div>
-<script src="data.js?v=20260928-8"></script>
+<script src="data.js?v=20261007-1"></script>
 <script src="app.js?v=20260929-16"></script>
 </body>
 </html>
