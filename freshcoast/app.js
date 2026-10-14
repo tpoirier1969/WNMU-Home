@@ -38,7 +38,9 @@ function fmtTime(t){const [h,m]=String(t).split(":").map(Number);return new Date
 function assignedToMe(b){return b.assigned&&b.assigned.toLowerCase()===viewer().toLowerCase()}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function renderBlocks(filter=currentFilter){
- currentFilter=filter;if(filter==="pat"){$("blocksTitle").textContent="Pat priorities";return renderPatPriorities()}$("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
+ currentFilter=filter;
+ if(filter==="pat"||(filter==="mine"&&viewer().trim().toLowerCase()==="pat")){$("blocksTitle").textContent="Pat priorities";return renderPatPriorities()}
+ $("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
  const list=$("blocksList");list.innerHTML="";
  let arr=DATA.blocks.filter(b=>filter!=="mine"||assignedToMe(b));
  arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||a.start.localeCompare(b.start)||a.block.localeCompare(b.block));
@@ -138,7 +140,8 @@ async function syncNow({automatic=false}={}){
 }
 function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
-$("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
+$("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);$("myBlocksBtn").textContent=e.target.value.trim().toLowerCase()==="pat"?"Pat priorities":"My assigned blocks";updateSyncUI()};
+$("myBlocksBtn").textContent=viewer().trim().toLowerCase()==="pat"?"Pat priorities":"My assigned blocks";
 $("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("patPrioritiesBtn").onclick=()=>{renderBlocks("pat");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;
