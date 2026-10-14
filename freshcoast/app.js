@@ -38,7 +38,7 @@ function fmtTime(t){const [h,m]=String(t).split(":").map(Number);return new Date
 function assignedToMe(b){return b.assigned&&b.assigned.toLowerCase()===viewer().toLowerCase()}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function renderBlocks(filter=currentFilter){
- currentFilter=filter;$("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
+ currentFilter=filter;if(filter==="pat"){$("blocksTitle").textContent="Pat priorities";return renderPatPriorities()}$("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
  const list=$("blocksList");list.innerHTML="";
  let arr=DATA.blocks.filter(b=>filter!=="mine"||assignedToMe(b));
  arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||a.start.localeCompare(b.start)||a.block.localeCompare(b.block));
@@ -50,6 +50,23 @@ function renderBlocks(filter=currentFilter){
   card.onclick=()=>openBlock(b);list.appendChild(card);
  }
  if(!arr.length)list.innerHTML='<div class="block-card"><h3>No assigned blocks found</h3><div class="venue">Check the viewer name or open All film blocks.</div></div>';
+}
+function renderPatPriorities(){
+ const list=$("blocksList");list.innerHTML="";
+ const priorities=DATA.patPriorities||[];
+ if(!priorities.length){list.innerHTML='<div class="block-card"><h3>No Pat priorities right now</h3><div class="venue">Everything needing festival viewing is already covered.</div></div>';return}
+ for(const p of priorities){
+  const card=document.createElement("article");card.className="block-card pat-card";
+  const options=(p.screeningKeys||[]).map(key=>DATA.blocks.find(b=>b.key===key)).filter(Boolean);
+  card.innerHTML='<div class="pat-rank">#'+p.rank+'</div><h3>'+esc(p.block)+'</h3><div class="badge-row"><span class="badge">Score '+Number(p.score||0).toFixed(1).replace(/\.0$/,"")+'</span><span class="badge">Uncovered</span></div><div class="pat-options"></div>';
+  const box=card.querySelector(".pat-options");
+  for(const b of options){
+    const btn=document.createElement("button");btn.type="button";btn.className="pat-option";
+    btn.innerHTML='<strong>'+fmtDate(b.date)+' • '+fmtTime(b.start)+'</strong><span>'+esc(b.venue)+'</span>';
+    btn.onclick=()=>openBlock(b);box.appendChild(btn);
+  }
+  list.appendChild(card);
+ }
 }
 function openBlock(b){currentBlock=b;$("blockTitle").textContent=b.block;$("blockMeta").textContent=fmtDate(b.date)+" • "+fmtTime(b.start);$("blockVenue").textContent=b.venue+(b.assigned?" • "+b.assigned:"");renderFilms();show("blockView")}
 const checks=[["swearing","Swearing"],["nudity","Nudity"],["fun","Fun"],["audienceLovedIt","Audience loved it"],["talkedToFilmmaker","Talked to filmmaker"],["underwritingRisks","Underwriting risks"],["musicRisks","Music risks"]];
@@ -122,7 +139,7 @@ async function syncNow({automatic=false}={}){
 function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
 $("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
-$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
+$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("patPrioritiesBtn").onclick=()=>{renderBlocks("pat");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;
 async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(retryWanted()&&pendingCount())await syncNow({automatic:true})}
