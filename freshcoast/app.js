@@ -7,6 +7,7 @@ const BRIDGE_URL=SB_URL+"/functions/v1/fresh-coast-public-data";
 const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync",DEVICE_KEY="fcff26_device_id";
 let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,syncInFlight=false,bannerTimer=null;
 const $=id=>document.getElementById(id);
+const PAT_PRIORITY_BY_KEY=new Map((DATA.patPriorities||[]).flatMap(p=>(p.screeningKeys||[]).map(key=>[key,p])));
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
 function loadContacts(){try{return JSON.parse(localStorage.getItem(CONTACT_KEY)||"{}")}catch{return {}}}
 function persist(){localStorage.setItem(STORE_KEY,JSON.stringify(feedback));updateSyncUI()}
@@ -34,41 +35,26 @@ function parseDate(d){
 function fmtDate(d){const dt=parseDate(d);return dt?dt.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"}):String(d||"Date unavailable")}
 function dateSortValue(d){const dt=parseDate(d);return dt?dt.getTime():0}
 function toISODate(d){const dt=parseDate(d);if(!dt)return null;return [dt.getFullYear(),String(dt.getMonth()+1).padStart(2,"0"),String(dt.getDate()).padStart(2,"0")].join("-")}
-function fmtTime(t){const [h,m]=String(t).split(":").map(Number);return new Date(2026,0,1,h,m).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
-function assignedToMe(b){return b.assigned&&b.assigned.toLowerCase()===viewer().toLowerCase()}
+function clockMinutes(t){const m=String(t||"").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);if(!m)return null;let h=Number(m[1]);if(m[3])h=h%12+(m[3].toUpperCase()==="PM"?12:0);return h*60+Number(m[2])}
+function fmtTime(t){const n=clockMinutes(t);return n===null?String(t||"Time unavailable"):new Date(2026,0,1,Math.floor(n/60),n%60).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+function assignedToMe(b){const name=viewer().trim().toLowerCase();return !!(b.assigned&&b.assigned.trim().toLowerCase()===name)||(name==="pat"&&PAT_PRIORITY_BY_KEY.has(b.key))}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function renderBlocks(filter=currentFilter){
  currentFilter=filter;
- if(filter==="pat"||(filter==="mine"&&viewer().trim().toLowerCase()==="pat")){$("blocksTitle").textContent="Pat priorities";return renderPatPriorities()}
  $("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
  const list=$("blocksList");list.innerHTML="";
+ if(filter==="mine"&&viewer().trim().toLowerCase()==="pat"){const note=document.createElement("p");note.className="blocks-note";note.textContent="These are Pat’s priority screening options, not confirmed assignments. Repeated titles are alternate showings. Choose one time per block; some screenings overlap.";list.appendChild(note)}
  let arr=DATA.blocks.filter(b=>filter!=="mine"||assignedToMe(b));
- arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||a.start.localeCompare(b.start)||a.block.localeCompare(b.block));
+ arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||(clockMinutes(a.start)??0)-(clockMinutes(b.start)??0)||a.block.localeCompare(b.block));
  let last="";
  for(const b of arr){if(b.date!==last){const h=document.createElement("div");h.className="day-heading";h.textContent=fmtDate(b.date);list.appendChild(h);last=b.date}
   const card=document.createElement("button");card.className="block-card"+(assignedToMe(b)?" mine":"");
   const completed=b.films.filter(f=>feedback[keyFor(f.sessionId,f.filmId)]).length;
-  card.innerHTML='<h3>'+esc(b.block)+'</h3><div class="when">'+fmtTime(b.start)+(b.assigned?' • '+esc(b.assigned):'')+'</div><div class="venue">'+esc(b.venue)+'</div><div class="badge-row"><span class="badge">'+b.films.length+' film'+(b.films.length===1?'':'s')+'</span>'+(completed?'<span class="badge">'+completed+' noted</span>':'')+(b.assigned?'<span class="badge assignment">'+esc(b.assigned)+'</span>':'')+'</div>';
+  const patPriority=filter==="mine"&&viewer().trim().toLowerCase()==="pat"?PAT_PRIORITY_BY_KEY.get(b.key):null;
+  card.innerHTML='<h3>'+esc(b.block)+'</h3><div class="when">'+fmtTime(b.start)+(b.assigned?' • '+esc(b.assigned):'')+'</div><div class="venue">'+esc(b.venue)+'</div><div class="badge-row"><span class="badge">'+b.films.length+' film'+(b.films.length===1?'':'s')+'</span>'+(completed?'<span class="badge">'+completed+' noted</span>':'')+(patPriority?'<span class="badge assignment">Priority #'+esc(patPriority.rank)+'</span>':'')+(b.assigned?'<span class="badge assignment">'+esc(b.assigned)+'</span>':'')+'</div>';
   card.onclick=()=>openBlock(b);list.appendChild(card);
  }
  if(!arr.length)list.innerHTML='<div class="block-card"><h3>No assigned blocks found</h3><div class="venue">Check the viewer name or open All film blocks.</div></div>';
-}
-function renderPatPriorities(){
- const list=$("blocksList");list.innerHTML="";
- const priorities=DATA.patPriorities||[];
- if(!priorities.length){list.innerHTML='<div class="block-card"><h3>No Pat priorities right now</h3><div class="venue">Everything needing festival viewing is already covered.</div></div>';return}
- for(const p of priorities){
-  const card=document.createElement("article");card.className="block-card pat-card";
-  const options=(p.screeningKeys||[]).map(key=>DATA.blocks.find(b=>b.key===key)).filter(Boolean);
-  card.innerHTML='<div class="pat-rank">#'+p.rank+'</div><h3>'+esc(p.block)+'</h3><div class="badge-row"><span class="badge">Score '+Number(p.score||0).toFixed(1).replace(/\.0$/,"")+'</span><span class="badge">Uncovered</span></div><div class="pat-options"></div>';
-  const box=card.querySelector(".pat-options");
-  for(const b of options){
-    const btn=document.createElement("button");btn.type="button";btn.className="pat-option";
-    btn.innerHTML='<strong>'+fmtDate(b.date)+' • '+fmtTime(b.start)+'</strong><span>'+esc(b.venue)+'</span>';
-    btn.onclick=()=>openBlock(b);box.appendChild(btn);
-  }
-  list.appendChild(card);
- }
 }
 function openBlock(b){currentBlock=b;$("blockTitle").textContent=b.block;$("blockMeta").textContent=fmtDate(b.date)+" • "+fmtTime(b.start);$("blockVenue").textContent=b.venue+(b.assigned?" • "+b.assigned:"");renderFilms();show("blockView")}
 const checks=[["swearing","Swearing"],["nudity","Nudity"],["fun","Fun"],["audienceLovedIt","Audience loved it"],["talkedToFilmmaker","Talked to filmmaker"],["underwritingRisks","Underwriting risks"],["musicRisks","Music risks"]];
@@ -140,9 +126,8 @@ async function syncNow({automatic=false}={}){
 }
 function banner(msg,bad=false){const el=$("syncBanner");if(bannerTimer)clearTimeout(bannerTimer);el.textContent=msg;el.className="sync-banner active"+(bad?" error":"");bannerTimer=setTimeout(()=>{el.className="sync-banner";el.textContent="";bannerTimer=null},5500)}
 $("viewerName").value=localStorage.getItem(VIEWER_KEY)||DATA.viewers?.[0]||"";
-$("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);$("myBlocksBtn").textContent=e.target.value.trim().toLowerCase()==="pat"?"Pat priorities":"My assigned blocks";updateSyncUI()};
-$("myBlocksBtn").textContent=viewer().trim().toLowerCase()==="pat"?"Pat priorities":"My assigned blocks";
-$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("patPrioritiesBtn").onclick=()=>{renderBlocks("pat");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
+$("viewerName").oninput=e=>{localStorage.setItem(VIEWER_KEY,e.target.value);updateSyncUI()};
+$("myBlocksBtn").onclick=()=>{renderBlocks("mine");show("blocksView")};$("allBlocksBtn").onclick=()=>{renderBlocks("all");show("blocksView")};
 document.querySelectorAll("[data-home]").forEach(b=>b.onclick=()=>show("homeView"));$("backBlocks").onclick=()=>{renderBlocks();show("blocksView")};
 $("syncButton").onclick=syncNow;$("syncButton2").onclick=syncNow;
 async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(retryWanted()&&pendingCount())await syncNow({automatic:true})}
