@@ -36,3 +36,6 @@ dialog{border:0;padding:0;border-radius:18px;background:#0d1821;color:white;widt
 @media(max-width:520px){.contact-grid{grid-template-columns:1fr}}
 
 .contact-name-wrap{grid-column:1/-1}
+
+.pat-card{position:relative}.pat-rank{position:absolute;right:14px;top:12px;font-size:.72rem;font-weight:900;color:#8fa4ad}
+.pat-options{display:grid;gap:7px;margin-top:4px}.pat-option{display:grid;gap:2px;width:100%;text-align:left;border:1px solid #2b414d;border-radius:11px;background:#09141b;color:#e7f0f2;padding:9px 10px}.pat-option strong{font-size:.8rem}.pat-option span{font-size:.74rem;color:#91a7b0}.pat-option:active{transform:translateY(1px)}
