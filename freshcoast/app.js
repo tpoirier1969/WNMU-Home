@@ -7,7 +7,6 @@ const BRIDGE_URL=SB_URL+"/functions/v1/fresh-coast-public-data";
 const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync",DEVICE_KEY="fcff26_device_id";
 let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,syncInFlight=false,bannerTimer=null;
 const $=id=>document.getElementById(id);
-const PAT_PRIORITY_BY_KEY=new Map((DATA.patPriorities||[]).flatMap(p=>(p.screeningKeys||[]).map(key=>[key,p])));
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
 function loadContacts(){try{return JSON.parse(localStorage.getItem(CONTACT_KEY)||"{}")}catch{return {}}}
 function persist(){localStorage.setItem(STORE_KEY,JSON.stringify(feedback));updateSyncUI()}
@@ -37,21 +36,19 @@ function dateSortValue(d){const dt=parseDate(d);return dt?dt.getTime():0}
 function toISODate(d){const dt=parseDate(d);if(!dt)return null;return [dt.getFullYear(),String(dt.getMonth()+1).padStart(2,"0"),String(dt.getDate()).padStart(2,"0")].join("-")}
 function clockMinutes(t){const m=String(t||"").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);if(!m)return null;let h=Number(m[1]);if(m[3])h=h%12+(m[3].toUpperCase()==="PM"?12:0);return h*60+Number(m[2])}
 function fmtTime(t){const n=clockMinutes(t);return n===null?String(t||"Time unavailable"):new Date(2026,0,1,Math.floor(n/60),n%60).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
-function assignedToMe(b){const name=viewer().trim().toLowerCase();return !!(b.assigned&&b.assigned.trim().toLowerCase()===name)||(name==="pat"&&PAT_PRIORITY_BY_KEY.has(b.key))}
+function assignedToMe(b){return !!b.assigned&&b.assigned.trim().toLowerCase()===viewer().trim().toLowerCase()}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function renderBlocks(filter=currentFilter){
  currentFilter=filter;
  $("blocksTitle").textContent=filter==="mine"?"My assigned blocks":"All film blocks";
  const list=$("blocksList");list.innerHTML="";
- if(filter==="mine"&&viewer().trim().toLowerCase()==="pat"){const note=document.createElement("p");note.className="blocks-note";note.textContent="These are Pat’s priority screening options, not confirmed assignments. Repeated titles are alternate showings. Choose one time per block; some screenings overlap.";list.appendChild(note)}
  let arr=DATA.blocks.filter(b=>filter!=="mine"||assignedToMe(b));
  arr.sort((a,b)=>dateSortValue(a.date)-dateSortValue(b.date)||(clockMinutes(a.start)??0)-(clockMinutes(b.start)??0)||a.block.localeCompare(b.block));
  let last="";
  for(const b of arr){if(b.date!==last){const h=document.createElement("div");h.className="day-heading";h.textContent=fmtDate(b.date);list.appendChild(h);last=b.date}
   const card=document.createElement("button");card.className="block-card"+(assignedToMe(b)?" mine":"");
   const completed=b.films.filter(f=>feedback[keyFor(f.sessionId,f.filmId)]).length;
-  const patPriority=filter==="mine"&&viewer().trim().toLowerCase()==="pat"?PAT_PRIORITY_BY_KEY.get(b.key):null;
-  card.innerHTML='<h3>'+esc(b.block)+'</h3><div class="when">'+fmtTime(b.start)+(b.assigned?' • '+esc(b.assigned):'')+'</div><div class="venue">'+esc(b.venue)+'</div><div class="badge-row"><span class="badge">'+b.films.length+' film'+(b.films.length===1?'':'s')+'</span>'+(completed?'<span class="badge">'+completed+' noted</span>':'')+(patPriority?'<span class="badge assignment">Priority #'+esc(patPriority.rank)+'</span>':'')+(b.assigned?'<span class="badge assignment">'+esc(b.assigned)+'</span>':'')+'</div>';
+  card.innerHTML='<h3>'+esc(b.block)+'</h3><div class="when">'+fmtTime(b.start)+(b.assigned?' • '+esc(b.assigned):'')+'</div><div class="venue">'+esc(b.venue)+'</div><div class="badge-row"><span class="badge">'+b.films.length+' film'+(b.films.length===1?'':'s')+'</span>'+(completed?'<span class="badge">'+completed+' noted</span>':'')+(b.assigned?'<span class="badge assignment">'+esc(b.assigned)+'</span>':'')+'</div>';
   card.onclick=()=>openBlock(b);list.appendChild(card);
  }
  if(!arr.length)list.innerHTML='<div class="block-card"><h3>No assigned blocks found</h3><div class="venue">Check the viewer name or open All film blocks.</div></div>';
