@@ -1,14 +1,14 @@
 const CACHE_PREFIX = "fresh-coast-viewer-";
-const CACHE_NAME = CACHE_PREFIX + "20261014-14";
+const CACHE_NAME = CACHE_PREFIX + "20261014-15";
 const NETWORK_TIMEOUT_MS = 2500;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./live.html",
-  "./styles.css?v=20261014-14",
-  "./data.js?v=20261014-14",
-  "./app.js?v=20261014-14",
+  "./styles.css?v=20261014-15",
+  "./data.js?v=20261014-15",
+  "./app.js?v=20261014-15",
   "./manifest.webmanifest",
   "../icon-192.png",
   "../icon-512.png"
