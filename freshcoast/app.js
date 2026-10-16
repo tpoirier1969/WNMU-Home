@@ -4,7 +4,7 @@ const DATA=window.FRESH_COAST_DATA||{viewers:[],films:{},blocks:[]};
 const SB_URL="https://tdepltlnughyfrjqufdg.supabase.co";
 const SB_KEY="sb_publishable_oz-1MPs6ix3grIJ7dCbOZg_jYpw6_Q1";
 const BRIDGE_URL=SB_URL+"/functions/v1/fresh-coast-public-data";
-const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync",DEVICE_KEY="fcff26_device_id";
+const STORE_KEY="fcff26_feedback_v1",CONTACT_KEY="fcff26_contacts_v1",VIEWER_KEY="fcff26_viewer",RETRY_KEY="fcff26_retry_sync",DEVICE_KEY="fcff26_device_id",PAGE_KEY="fcff26_page_session";
 let feedback=loadFeedback(),contacts=loadContacts(),currentFilter="all",currentBlock=null,syncInFlight=false,bannerTimer=null;
 const $=id=>document.getElementById(id);
 function loadFeedback(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}catch{return {}}}
@@ -21,8 +21,8 @@ function viewer(){return $("viewerName").value.trim()||"Viewer"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
 function blankRecord(entry,block){return{feedbackId:crypto.randomUUID(),sessionId:entry.sessionId,filmId:entry.filmId,title:entry.title,block:block.block,date:block.date,start:block.start,venue:block.venue,viewer:viewer(),swearing:false,nudity:false,fun:false,audienceLovedIt:false,talkedToFilmmaker:false,underwritingRisks:false,musicRisks:false,broadcastInterest:null,notes:"",dirty:false,updatedAt:new Date().toISOString()}}
 function getRecord(entry,block){const k=keyFor(entry.sessionId,entry.filmId);const rec=feedback[k]||blankRecord(entry,block);rec.viewer=viewer();return rec}
-function getContact(entry){return contacts[entry.filmId]||{filmId:entry.filmId,title:entry.title,name:"",email:"",phone:"",dirty:false}}
-function show(id){["homeView","blocksView","blockView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));scrollTo(0,0)}
+function getContact(entry){const film=DATA.films[entry.filmId]||{};const saved=contacts[entry.filmId]||{};return {filmId:entry.filmId,title:entry.title,name:film.contactName||film.filmmakerName||film.director||"",email:film.contactEmail||film.email||"",phone:film.contactPhone||film.phone||"",dirty:false,...saved}}
+function show(id){["homeView","blocksView","blockView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));try{sessionStorage.setItem(PAGE_KEY,JSON.stringify({view:id,filter:currentFilter,blockId:currentBlock?.sessionId||null,blockName:currentBlock?.block||null,blockDate:currentBlock?.date||null}))}catch{}scrollTo(0,0)}
 function parseDate(d){
  const s=String(d||"").trim();
  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -131,5 +131,6 @@ async function handleOnline(){updateSyncUI();await refreshSharedContacts();if(re
 window.addEventListener("online",handleOnline);
 window.addEventListener("offline",()=>{updateSyncUI();if(syncInFlight)banner(savedChangesMessage("Sync interrupted.",true),true)});
 refreshSharedContacts();updateSyncUI();
+try{const saved=JSON.parse(sessionStorage.getItem(PAGE_KEY)||"null");if(saved?.view==="blocksView"||saved?.view==="blockView"){renderBlocks(saved.filter==="mine"?"mine":"all");if(saved.view==="blockView"){const block=DATA.blocks.find(b=>(saved.blockId&&b.sessionId===saved.blockId)||(b.block===saved.blockName&&b.date===saved.blockDate));if(block)openBlock(block);else show("blocksView")}else show("blocksView")}}catch{}
 if(navigator.onLine&&retryWanted()&&pendingCount())setTimeout(()=>syncNow({automatic:true}),500);
 })();
