@@ -21,7 +21,7 @@ function viewer(){return $("viewerName").value.trim()||"Viewer"}
 function keyFor(sessionId,filmId){return sessionId+"::"+filmId}
 function blankRecord(entry,block){return{feedbackId:crypto.randomUUID(),sessionId:entry.sessionId,filmId:entry.filmId,title:entry.title,block:block.block,date:block.date,start:block.start,venue:block.venue,viewer:viewer(),swearing:false,nudity:false,fun:false,audienceLovedIt:false,talkedToFilmmaker:false,underwritingRisks:false,musicRisks:false,broadcastInterest:null,notes:"",dirty:false,updatedAt:new Date().toISOString()}}
 function getRecord(entry,block){const k=keyFor(entry.sessionId,entry.filmId);const rec=feedback[k]||blankRecord(entry,block);rec.viewer=viewer();return rec}
-function getContact(entry){const film=DATA.films[entry.filmId]||{};const saved=contacts[entry.filmId]||{};return {filmId:entry.filmId,title:entry.title,name:film.contactName||film.filmmakerName||film.director||"",email:film.contactEmail||film.email||"",phone:film.contactPhone||film.phone||"",dirty:false,...saved}}
+function getContact(entry){const film=DATA.films[entry.filmId]||{};const saved=contacts[entry.filmId]||{};return {filmId:entry.filmId,title:entry.title,dirty:false,...saved,name:saved.name||film.contactName||film.filmmakerName||film.director||"",email:saved.email||film.contactEmail||film.email||"",phone:saved.phone||film.contactPhone||film.phone||""}}
 function show(id){["homeView","blocksView","blockView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));try{sessionStorage.setItem(PAGE_KEY,JSON.stringify({view:id,filter:currentFilter,blockId:currentBlock?.sessionId||null,blockName:currentBlock?.block||null,blockDate:currentBlock?.date||null}))}catch{}scrollTo(0,0)}
 function parseDate(d){
  const s=String(d||"").trim();
